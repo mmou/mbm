@@ -3,7 +3,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+
 #include <syslog.h>
+
+#include "main.h"
 
 // const char default_filename[] = DEFAULT_FILENAME;
 
@@ -63,22 +69,22 @@ int main(int argc, char* argv[]) {
 	// h help
 	// port
 
-	opterr = 0
+	opterr = 0;
 	while ((c = getopt(argc, argv, "rate:rtt:mss:burst:")) != -1) {
 		switch (c) {
-			case 'rate':
+			case "rate":
 				FLAG_rate = optarg;
 				break;
-			case 'rtt':
+			case "rtt":
 				FLAG_rtt = optarg;
 				break;
-			case 'mss':
+			case "mss":
 				FLAG_mss = optarg;
 				break;
-			case 'burst':
+			case "burst":
 				FLAG_burst_size = optarg;
 				break;	
-			case '?':
+			case "?":
 				fprintf(stderr, "ERROR: invalid arguments");
 				exit(EXIT_FAILURE)
 			default:
