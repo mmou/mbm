@@ -7,6 +7,11 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+#include <getopt.h>
+
+#include <errno.h>
+#include <string.h>
+
 #include <syslog.h>
 
 #include "main.h"
@@ -33,7 +38,61 @@ struct timeval time_start, time_now, time_delta;
 
 namespace mbm {
 
+    struct mbm_args {
+        int rate;
+        int rtt;
+        int mss;
+        int burst_size;
+    };
+
+
 }	// namespace mbm
+
+
+mbm::mbm_args mbm_parse_arguments(int argc, char **argv) {
+
+    // see https://www.gnu.org/software/libc/manual/html_node/Example-of-Getopt.html#Example-of-Getopt
+    // see https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
+
+    mbm::mbm_args new_args;
+
+    static struct option long_opts[] = 
+    {
+        {"rate", required_argument, 0, 'r'},
+        {"rtt", required_argument, 0, 't'},
+        {"mss", required_argument, 0, 'd'},
+        {"burst_size", required_argument, 0, 'c'},
+        {NULL, 0, NULL, 0}
+    };
+
+    int opt;
+    while ((opt = getopt_long(argc, argv, "r:t:m:b:", long_opts, NULL)) != -1) {
+        switch (opt) {
+            case 'r':
+                new_args.rate = atoi(optarg);
+                break;
+            case 't':
+                new_args.rtt = atoi(optarg);
+                break;
+            case 'm':
+                new_args.mss = atoi(optarg);
+                break;
+            case 'b':
+                new_args.burst_size = atoi(optarg);
+                break;  
+            case '?':
+                fprintf(stderr, "ERROR: invalid arguments");
+                exit(EXIT_FAILURE);
+            default:
+                exit(EXIT_FAILURE);                            
+        }
+    }
+
+    return new_args;
+}
+
+
+
 
 int main(int argc, char* argv[]) {
     /* Options with their defaults */
@@ -43,7 +102,6 @@ int main(int argc, char* argv[]) {
     char *opt_filename = NULL;
     unsigned short opt_port = DEFAULT_PORT;
     unsigned short opt_reply = 0;
-    int option;
     /* Program logic */
     unsigned short debug_counter = DEFAULT_LOOPS;
     int client_length;
@@ -55,12 +113,6 @@ int main(int argc, char* argv[]) {
 
 
     /* Get options */
-
-	// see https://www.gnu.org/software/libc/manual/html_node/Example-of-Getopt.html#Example-of-Getopt
-	int FLAG_rate = 0;
-	int FLAG_rtt = 0;
-	int FLAG_mss = 0;
-	int FLAG_burst_size = 0;
 	
 	// buffer
 	// daemon
@@ -69,28 +121,7 @@ int main(int argc, char* argv[]) {
 	// h help
 	// port
 
-	opterr = 0;
-	while ((c = getopt(argc, argv, "rate:rtt:mss:burst:")) != -1) {
-		switch (c) {
-			case "rate":
-				FLAG_rate = optarg;
-				break;
-			case "rtt":
-				FLAG_rtt = optarg;
-				break;
-			case "mss":
-				FLAG_mss = optarg;
-				break;
-			case "burst":
-				FLAG_burst_size = optarg;
-				break;	
-			case "?":
-				fprintf(stderr, "ERROR: invalid arguments");
-				exit(EXIT_FAILURE)
-			default:
-				abort();							
-		}
-	}
+
 
 	// open logs and files...
 
