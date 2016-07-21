@@ -22,11 +22,11 @@
 // FILE *statistics;
 
 /* Things we need for dealing with TCP */
-struct sockaddr_in server_address,client_address;
+struct sockaddr_in client_ctrl_address, server_ctrl_address; //client_address;
 char *tcp_buffer;
 struct tcp_info tcp_info;
 int tcp_info_length;
-int tcp_socket;
+int ctrl_socket;
 int tcp_work_socket;
 
 /* Buffer for reply string */
@@ -45,8 +45,12 @@ namespace mbm {
         int burst_size;
     };
 
+    struct all_args {
+        sockaddr_in server_ctrl_address;
+        mbm_config mbm_args;
+    };
 
-    Result Run(mbm_config config) {
+    void Run(all_args all_args) {
 
         unsigned short opt_port = DEFAULT_PORT;
 
@@ -124,14 +128,13 @@ namespace mbm {
             exit(EXIT_FAILURE);
         }
 
-
         /* Bind to any address on local machine */
         // The bind() function assigns an address to an unnamed socket.
-        server_address.sin_family = AF_INET;
-        server_address.sin_addr.s_addr = INADDR_ANY;
-        server_address.sin_port = htons(opt_port);
+        client_ctrl_address.sin_family = AF_INET;
+        client_ctrl_address.sin_addr.s_addr = INADDR_ANY;
+        client_ctrl_address.sin_port = htons(opt_port);
 
-        if (bind(ctrl_socket, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
+        if (bind(ctrl_socket, (struct sockaddr *)&client_ctrl_address, sizeof(client_ctrl_address)) < 0) {
             /* Cannot bind to socket. */
             syslog( LOG_DAEMON | LOG_CRIT, "Cannot bind to socket: %s", strerror(errno) );
             exit(EXIT_FAILURE);         
@@ -146,152 +149,172 @@ namespace mbm {
             exit(EXIT_FAILURE);
         }
 
-        // why? what is this buffer for?????
-        /* Allocate Buffer for TCP stream data.
-         * (We store it temporarily only since we act as an TCP sink.)
-         */
-        tcp_buffer = malloc(opt_buffer);
-        if ( tcp_buffer == NULL ) {
-            syslog( LOG_DAEMON | LOG_CRIT, "Can't allocate buffer for TCP temporary memory.\n" );
-            exit(EXIT_FAILURE);
-        }
 
-        // ssize_t recv(int socket, void *buffer, size_t length, int flags);
-        recv_bytes = recv(ctrl_socket, tcp_buffer, opt_buffer, 0);
+        //connect to server
+        // int connect(int socket, const struct sockaddr *address, socklen_t address_len);
+        connect(ctrl_socket, (struct sockaddr *)&all_args.server_ctrl_address, sizeof(all_args.server_ctrl_address));
 
 
-
-        while ( debug_counter > 0 ) {
-            client_length = sizeof(client_address);
-            tcp_work_socket = accept( tcp_socket, (struct sockaddr *)&client_address, (socklen_t *)&client_length );
-            /* Get time for counting milliseconds. */
-            get_now( &time_start, opt_debug );
-            /* As soon as we got a connection, we deal with the incoming data by using
-             * a second socket. We only read as much as opt_buffer bytes.
-             */
-            if ( (recv_bytes = recv( tcp_work_socket, tcp_buffer, opt_buffer, 0 ) ) > 0 ) {
-                /* Fill tcp_info structure with data to get the TCP options and the client's
-                 * name.
-                 */
-                tcp_info_length = sizeof(tcp_info);
-                if ( getsockopt( tcp_work_socket, SOL_IP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
-                    memset((void *)tcp_options_text, 0, MAX_TCPOPT);
-                    decode_tcp_options(tcp_options_text,tcp_info.tcpi_options);
-                    if ( opt_debug > 0 ) {
-                        printf("Got a new connection from client %s.\n",inet_ntoa(client_address.sin_addr));
-                    }
-                    else {
-                        syslog( LOG_DAEMON | LOG_INFO, "Received connection from client at address %s.",
-                               inet_ntoa(client_address.sin_addr));
-                    }
-                    /* Write some statistics and start of connection to log file. */
-                    fprintf(statistics,"# Received connection from %s (AdvMSS %u, PMTU %u, options (%0.X): %s)\n",
-                            inet_ntoa(client_address.sin_addr),
-                            tcp_info.tcpi_advmss,
-                            tcp_info.tcpi_pmtu,
-                            tcp_info.tcpi_options,
-                            tcp_options_text
-                           );
-                }
-            }
-            while ( (recv_bytes = recv( tcp_work_socket, tcp_buffer, opt_buffer, 0 ) ) > 0 ) {
-                if ( opt_debug > 0 ) {
-                    printf("\nReceived %d bytes on socket.\n",recv_bytes);
-                }
-                /* Measure time in order to create time intervals. */
-                get_now( &time_now, opt_debug );
-                /* Fill tcp_info structure with data */
-                tcp_info_length = sizeof(tcp_info);
-
-                if ( getsockopt( tcp_work_socket, SOL_TCP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
-                    if ( opt_debug > 0 ) {
-                        printf("snd_cwnd: %u\nsnd_ssthresh: %u\nrcv_ssthresh: %u\nrtt: %u\nrtt_var: %u\n",
-                               tcp_info.tcpi_snd_cwnd,
-                               tcp_info.tcpi_snd_ssthresh,
-                               tcp_info.tcpi_rcv_ssthresh,
-                               tcp_info.tcpi_rtt,
-                               tcp_info.tcpi_rttvar
-                              );
-                    }
-                    fprintf(statistics,"%.6f %u %u %u %u %u %u %u %u %u %u %u %u\n",
-                            time_to_seconds( &time_start, &time_now ),
-                            tcp_info.tcpi_last_data_sent,
-                            tcp_info.tcpi_last_data_recv,
-                            tcp_info.tcpi_snd_cwnd,
-                            tcp_info.tcpi_snd_ssthresh,
-                            tcp_info.tcpi_rcv_ssthresh,
-                            tcp_info.tcpi_rtt,
-                            tcp_info.tcpi_rttvar,
-                            tcp_info.tcpi_unacked,
-                            tcp_info.tcpi_sacked,
-                            tcp_info.tcpi_lost,
-                            tcp_info.tcpi_retrans,
-                            tcp_info.tcpi_fackets
-                           );
-                    if ( fflush(statistics) != 0 ) {
-                        if ( opt_debug > 0 ) {
-                            fprintf(stderr, "Cannot flush buffers: %s\n", strerror(errno) );
-                        }
-                        else {
-                            syslog( LOG_DAEMON | LOG_CRIT, "Cannot flush buffers: %s", strerror(errno) );
-                        }
-                    }
-                    /* Send reply text via TCP connection */
-                    if ( opt_reply != 0 ) {
-                        reply_size = snprintf( reply_string, REPLY_MAXLENGTH, "rcv_ssthresh %u\n", tcp_info.tcpi_rcv_ssthresh );
-                        if ( reply_size > 0 ) {
-                            if ( send( tcp_work_socket, (void *)reply_string, reply_size, MSG_DONTWAIT ) == -1 ) {
-                                if ( opt_debug > 0 ) {
-                                    fprintf(stderr, "Reply size %u didn't match: %s\n", reply_size, strerror(errno) );
-                                }
-                                else {
-                                    syslog( LOG_DAEMON | LOG_ERR, "Reply size %u didn't match: %s", reply_size, strerror(errno) );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            close(tcp_work_socket);
-            fprintf(statistics,"# Closed connection from %s.\n",inet_ntoa(client_address.sin_addr));
-            if ( fflush(statistics) != 0 ) {
-                if ( opt_debug > 0 ) {
-                    fprintf(stderr, "Cannot flush buffers: %s\n", strerror(errno) );
-                }
-                else {
-                    syslog( LOG_DAEMON | LOG_CRIT, "Cannot flush buffers: %s", strerror(errno) );
-                }
-            }
-            if ( opt_debug > 0 ) {
-                debug_counter--;
-                printf("Closed connection. Decrementing debug counter to %u.\n\n",debug_counter);
-            }
-            else {
-                syslog( LOG_DAEMON | LOG_INFO, "Closed connection from %s",
-                       inet_ntoa(client_address.sin_addr));
-            }
-            sleep(DEFAULT_SLEEP);
-        }
-
-        /* That's a happy ending. */
-        exit(EXIT_SUCCESS);
+        // send config to server
+        // ssize_t send(int socket, const void *buffer, size_t length, int flags);
+        send(all_args.server_ctrl_address.sin_port, )
 
 
+        // receive test port from server
+        // <<<<<<<<<<<<
+
+
+        //// why? what is this buffer for?????
+        ///* Allocate Buffer for TCP stream data.
+        // * (We store it temporarily only since we act as an TCP sink.)
+        // */
+        //tcp_buffer = malloc(opt_buffer);
+        //if ( tcp_buffer == NULL ) {
+        //    syslog( LOG_DAEMON | LOG_CRIT, "Can't allocate buffer for TCP temporary memory.\n" );
+        //    exit(EXIT_FAILURE);
+        //}
+//
+//
+        //////////
+        //// ssize_t recv(int socket, void *buffer, size_t length, int flags);
+        ///* recv_port = recv(ctrl_socket, tcp_buffer, opt_buffer, 0); */
+        /////////
+//
+//
+        //client_length = sizeof(client_address);
+        //tcp_work_socket = accept( tcp_socket, (struct sockaddr *)&client_address, (socklen_t *)&client_length );
+        ///* Get time for counting milliseconds. */
+//
+//
+        ///* As soon as we got a connection, we deal with the incoming data by using
+        // * a second socket. We only read as much as opt_buffer bytes.
+        // */
+        //if ( (recv_bytes = recv( tcp_work_socket, tcp_buffer, opt_buffer, 0 ) ) > 0 ) {
+        //    /* Fill tcp_info structure with data to get the TCP options and the client's
+        //     * name.
+        //     */
+        //    tcp_info_length = sizeof(tcp_info);
+        //    if ( getsockopt( tcp_work_socket, SOL_IP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
+        //        memset((void *)tcp_options_text, 0, MAX_TCPOPT);
+        //        decode_tcp_options(tcp_options_text,tcp_info.tcpi_options);
+        //        if ( opt_debug > 0 ) {
+        //            printf("Got a new connection from client %s.\n",inet_ntoa(client_address.sin_addr));
+        //        }
+        //        else {
+        //            syslog( LOG_DAEMON | LOG_INFO, "Received connection from client at address %s.",
+        //                   inet_ntoa(client_address.sin_addr));
+        //        }
+        //        /* Write some statistics and start of connection to log file. */
+        //        fprintf(statistics,"# Received connection from %s (AdvMSS %u, PMTU %u, options (%0.X): %s)\n",
+        //                inet_ntoa(client_address.sin_addr),
+        //                tcp_info.tcpi_advmss,
+        //                tcp_info.tcpi_pmtu,
+        //                tcp_info.tcpi_options,
+        //                tcp_options_text
+        //               );
+        //    }
+        //}
+        //while ( (recv_bytes = recv( tcp_work_socket, tcp_buffer, opt_buffer, 0 ) ) > 0 ) {
+        //    if ( opt_debug > 0 ) {
+        //        printf("\nReceived %d bytes on socket.\n",recv_bytes);
+        //    }
+        //    /* Measure time in order to create time intervals. */
+        //    get_now( &time_now, opt_debug );
+        //    /* Fill tcp_info structure with data */
+        //    tcp_info_length = sizeof(tcp_info);
+//
+        //    if ( getsockopt( tcp_work_socket, SOL_TCP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
+        //        if ( opt_debug > 0 ) {
+        //            printf("snd_cwnd: %u\nsnd_ssthresh: %u\nrcv_ssthresh: %u\nrtt: %u\nrtt_var: %u\n",
+        //                   tcp_info.tcpi_snd_cwnd,
+        //                   tcp_info.tcpi_snd_ssthresh,
+        //                   tcp_info.tcpi_rcv_ssthresh,
+        //                   tcp_info.tcpi_rtt,
+        //                   tcp_info.tcpi_rttvar
+        //                  );
+        //        }
+        //        fprintf(statistics,"%.6f %u %u %u %u %u %u %u %u %u %u %u %u\n",
+        //                time_to_seconds( &time_start, &time_now ),
+        //                tcp_info.tcpi_last_data_sent,
+        //                tcp_info.tcpi_last_data_recv,
+        //                tcp_info.tcpi_snd_cwnd,
+        //                tcp_info.tcpi_snd_ssthresh,
+        //                tcp_info.tcpi_rcv_ssthresh,
+        //                tcp_info.tcpi_rtt,
+        //                tcp_info.tcpi_rttvar,
+        //                tcp_info.tcpi_unacked,
+        //                tcp_info.tcpi_sacked,
+        //                tcp_info.tcpi_lost,
+        //                tcp_info.tcpi_retrans,
+        //                tcp_info.tcpi_fackets
+        //               );
+        //        if ( fflush(statistics) != 0 ) {
+        //            if ( opt_debug > 0 ) {
+        //                fprintf(stderr, "Cannot flush buffers: %s\n", strerror(errno) );
+        //            }
+        //            else {
+        //                syslog( LOG_DAEMON | LOG_CRIT, "Cannot flush buffers: %s", strerror(errno) );
+        //            }
+        //        }
+        //        /* Send reply text via TCP connection */
+        //        if ( opt_reply != 0 ) {
+        //            reply_size = snprintf( reply_string, REPLY_MAXLENGTH, "rcv_ssthresh %u\n", tcp_info.tcpi_rcv_ssthresh );
+        //            if ( reply_size > 0 ) {
+        //                if ( send( tcp_work_socket, (void *)reply_string, reply_size, MSG_DONTWAIT ) == -1 ) {
+        //                    if ( opt_debug > 0 ) {
+        //                        fprintf(stderr, "Reply size %u didn't match: %s\n", reply_size, strerror(errno) );
+        //                    }
+        //                    else {
+        //                        syslog( LOG_DAEMON | LOG_ERR, "Reply size %u didn't match: %s", reply_size, strerror(errno) );
+        //                    }
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
+        //close(tcp_work_socket);
+        //fprintf(statistics,"# Closed connection from %s.\n",inet_ntoa(client_address.sin_addr));
+        //if ( fflush(statistics) != 0 ) {
+        //    if ( opt_debug > 0 ) {
+        //        fprintf(stderr, "Cannot flush buffers: %s\n", strerror(errno) );
+        //    }
+        //    else {
+        //        syslog( LOG_DAEMON | LOG_CRIT, "Cannot flush buffers: %s", strerror(errno) );
+        //    }
+        //}
+        //if ( opt_debug > 0 ) {
+        //    debug_counter--;
+        //    printf("Closed connection. Decrementing debug counter to %u.\n\n",debug_counter);
+        //}
+        //else {
+        //    syslog( LOG_DAEMON | LOG_INFO, "Closed connection from %s",
+        //           inet_ntoa(client_address.sin_addr));
+        //}
+        //sleep(DEFAULT_SLEEP);
+//
+        ///* That's a happy ending. */
+        //exit(EXIT_SUCCESS);
+
+
+
+    
     }
-
-
 }	// namespace mbm
 
 
-mbm::mbm_config mbm_parse_arguments(int argc, char* argv[]) {
+mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
 
     // see https://www.gnu.org/software/libc/manual/html_node/Example-of-Getopt.html#Example-of-Getopt
     // see https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-    mbm::mbm_config new_args;
+    mbm::all_args new_args;
+
+    new_args.server_ctrl_address.sin_family = AF_INET;
 
     static struct option long_opts[] = 
     {
+        {"server_address", required_argument, 0, 'a'}, // TODO: 0???
+        {"server_port", required_argument, 0, 'p'},        
         {"rate", required_argument, 0, 'r'},
         {"rtt", required_argument, 0, 't'},
         {"mss", required_argument, 0, 'd'},
@@ -300,19 +323,25 @@ mbm::mbm_config mbm_parse_arguments(int argc, char* argv[]) {
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "r:t:m:b:", long_opts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "a:p:r:t:m:b:", long_opts, NULL)) != -1) {
         switch (opt) {
+            case 'a':
+                new_args.server_ctrl_address.sin_addr.s_addr = atoi(optarg);   // TODO: type check
+                break;
+            case 'p':
+                new_args.server_ctrl_address.sin_port = htons(atoi(optarg)); // TODO: type check
+                break;
             case 'r':
-                new_args.rate = atoi(optarg);
+                new_args.mbm_args.rate = atoi(optarg);
                 break;
             case 't':
-                new_args.rtt = atoi(optarg);
+                new_args.mbm_args.rtt = atoi(optarg);
                 break;
             case 'm':
-                new_args.mss = atoi(optarg);
+                new_args.mbm_args.mss = atoi(optarg);
                 break;
             case 'b':
-                new_args.burst_size = atoi(optarg);
+                new_args.mbm_args.burst_size = atoi(optarg);
                 break;  
             case '?':
                 fprintf(stderr, "ERROR: invalid arguments");
@@ -331,7 +360,7 @@ mbm::mbm_config mbm_parse_arguments(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
 
     /* Get options */
-    mbm::mbm_config config = mbm_parse_arguments(argc, argv);
+    mbm::all_args all_args = mbm_parse_arguments(argc, argv);
 	
 	// buffer
 	// daemon
@@ -345,7 +374,7 @@ int main(int argc, char* argv[]) {
 	// open logs and files...
 
 	// run
-	mbm::Run(config);
+	mbm::Run(all_args);
 
 	return 0;	
 }
