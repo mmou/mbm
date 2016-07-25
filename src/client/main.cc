@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,12 +9,16 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+#include <arpa/inet.h>
+
 #include <getopt.h>
 
 #include <errno.h>
 #include <string.h>
 
 #include <syslog.h>
+
+//#include "common/packet.h"
 
 #include "main.h"
 
@@ -118,10 +124,11 @@ namespace mbm {
 
 
 
+        fprintf(stdout, "creating client socket\n");
 
         /* Prepare TCP socket. */
         // int socket(int domain, int type, int protocol);
-        ctrl_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+        ctrl_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if ( ctrl_socket < 0 ) {
             /* Could not open socket. */
             syslog( LOG_DAEMON | LOG_CRIT, "Could not open TCP socket: %s", strerror(errno) );
@@ -134,30 +141,64 @@ namespace mbm {
         client_ctrl_address.sin_addr.s_addr = INADDR_ANY;
         client_ctrl_address.sin_port = htons(opt_port);
 
+        fprintf(stdout, "binding client socket\n");
+
         if (bind(ctrl_socket, (struct sockaddr *)&client_ctrl_address, sizeof(client_ctrl_address)) < 0) {
             /* Cannot bind to socket. */
             syslog( LOG_DAEMON | LOG_CRIT, "Cannot bind to socket: %s", strerror(errno) );
-            exit(EXIT_FAILURE);         
+            exit(EXIT_FAILURE);
         }
 
         /* We can now listen for incoming connections. We only allow a backlog of one
          * connection
          */
         // listen - listen for socket connections and limit the queue of incoming connections
-        if (listen(ctrl_socket, 1) != 0) {
-            syslog( LOG_DAEMON | LOG_CRIT, "Cannot listen on socket: %s", strerror(errno) );
-            exit(EXIT_FAILURE);
+        //if (listen(ctrl_socket, 1) != 0) {
+        //    syslog( LOG_DAEMON | LOG_CRIT, "Cannot listen on socket: %s", strerror(errno) );
+        //    exit(EXIT_FAILURE);
+        //}
+
+
+        fprintf(stdout, "connecting to %d\n", all_args.server_ctrl_address.sin_port);
+        //connect to server
+        // int connect(int socket, const struct sockaddr *address, socklen_t address_len);
+        if (connect(ctrl_socket, (struct sockaddr *)&all_args.server_ctrl_address, sizeof(all_args.server_ctrl_address)) != 0) {
+            fprintf(stdout, "FAILED TO CONNECT: %s", strerror(errno));          
         }
 
 
-        //connect to server
-        // int connect(int socket, const struct sockaddr *address, socklen_t address_len);
-        connect(ctrl_socket, (struct sockaddr *)&all_args.server_ctrl_address, sizeof(all_args.server_ctrl_address));
+        char buffer[256];
+        int  n;
+   
+        printf("Please enter the message: ");
+           bzero(buffer,256);
+           fgets(buffer,255,stdin);
+           
+           /* Send message to the server */
+           //n = write(ctrl_socket, buffer, strlen(buffer));
+
+           n = send(ctrl_socket, buffer, strlen(buffer), 0);
+           
+           if (n < 0) {
+              perror("ERROR writing to socket");
+              exit(1);
+           }
+           
+           /* Now read server response */
+           bzero(buffer,256);
+           n = recv(ctrl_socket, buffer, 255, 0);
+           
+           if (n < 0) {
+              perror("ERROR reading from socket");
+              exit(1);
+           }
+            
+           printf("%s\n",buffer);
 
 
         // send config to server
         // ssize_t send(int socket, const void *buffer, size_t length, int flags);
-        send(all_args.server_ctrl_address.sin_port, )
+        ///// send(all_args.server_ctrl_address.sin_port, )
 
 
         // receive test port from server
@@ -322,35 +363,43 @@ mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
         {NULL, 0, NULL, 0}
     };
 
+    //fprintf(stdout, "hielloe!");
+
     int opt;
-    while ((opt = getopt_long(argc, argv, "a:p:r:t:m:b:", long_opts, NULL)) != -1) {
+    int opt_index = 0;
+    while ((opt = getopt_long(argc, argv, "a:p:r:t:m:b:", long_opts, &opt_index)) != -1) {
         switch (opt) {
             case 'a':
-                new_args.server_ctrl_address.sin_addr.s_addr = atoi(optarg);   // TODO: type check
+                inet_aton(optarg, &new_args.server_ctrl_address.sin_addr);
                 break;
             case 'p':
                 new_args.server_ctrl_address.sin_port = htons(atoi(optarg)); // TODO: type check
+                //fprintf(stdout, "option -a with value '%d'\n", htons(atoi(optarg)));
+                //fprintf(stdout, "set to be: %d\n", new_args.server_ctrl_address.sin_port);
                 break;
             case 'r':
                 new_args.mbm_args.rate = atoi(optarg);
+
                 break;
             case 't':
                 new_args.mbm_args.rtt = atoi(optarg);
+
                 break;
             case 'm':
                 new_args.mbm_args.mss = atoi(optarg);
+
                 break;
             case 'b':
                 new_args.mbm_args.burst_size = atoi(optarg);
+
                 break;  
             case '?':
-                fprintf(stderr, "ERROR: invalid arguments");
+                fprintf(stdout, "ERROR: invalid arguments");
                 exit(EXIT_FAILURE);
             default:
                 exit(EXIT_FAILURE);                            
         }
     }
-
     return new_args;
 }
 
@@ -361,7 +410,7 @@ int main(int argc, char* argv[]) {
 
     /* Get options */
     mbm::all_args all_args = mbm_parse_arguments(argc, argv);
-	
+    // fprintf(stdout, "port '%d'", all_args.server_ctrl_address.sin_port);	
 	// buffer
 	// daemon
 	// debug level
