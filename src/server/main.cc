@@ -13,117 +13,106 @@
 
 #include "main.h"
 
-/*
-
-main
-   ListenSocket socket
-   while true:
-      accept new conections: AcceptedSocket ctrl_socket
-      ServerConfig
-      create new thread (mlab pthread_t) for each new server socket
-
-
-
-ServerThread
-   get available port
-   AcceptedSocket ctrl_socket
-      set receive, send timeout
-
-ctrl_socket receive config
-
-create ListenSocket listen_socket on some port
-
-
-scoped_ptr<ListenSocket> mbm_socket(listen_socket) // what is this doing
-
-ctrl_socket: tell client to connect to listen port
-
-accept test connection
-AcceptedSocket test_socket_buff / test_socket
-
-AcceptedSocket test_socket
-   test_socket: set receive, send timeout
-
-
-ctrl_socket receive READY
-test_socket receive READY
-
-RunCBR(test_socket, ctrl_socket)
-
-
-
-
-*/
-
-
 int main( int argc, char *argv[] ) {
-   int sockfd, newsockfd, portno, clilen;
-   char buffer[256];
-   struct sockaddr_in serv_addr, cli_addr;
-   int n;
-   
-   // fprintf(stdout, "creating socket\n");
-   /* First call to socket() function */
-   sockfd = socket(AF_INET, SOCK_STREAM, 0); // IPPROTO_TCP?
+    int server_listener_socket, client_control_socket;
+    struct sockaddr_in server_listener_addr, client_control_addr;
 
-   if (sockfd < 0) {
-      perror("ERROR opening socket");
-      exit(1);
-   }
-   
-   /* Initialize socket structure */
-   bzero((char *) &serv_addr, sizeof(serv_addr));
-   portno = 5001;
-   
-   serv_addr.sin_family = AF_INET;
-   inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr.s_addr);
-   //serv_addr.sin_addr.s_addr = INADDR_ANY;
-   serv_addr.sin_port = htons(portno);
-   
-   // fprintf(stdout, "binding socket\n");
-   /* Now bind the host address using bind() call.*/
-   if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-      perror("ERROR on binding");
-      exit(1);
-   }
-   
-   /* Now start listening for the clients, here process will
+    int portno;
+    char buffer[256];
+    int n;
+
+    server_listener_socket = socket(AF_INET, SOCK_STREAM, 0); // IPPROTO_TCP?
+    if (server_listener_socket < 0) {
+        fprintf(stdout, "ERROR creating socket");
+        exit(1);
+    }
+
+
+    portno = DEFAULT_PORT;
+    server_listener_addr.sin_family = AF_INET;
+    server_listener_addr.sin_addr.s_addr = INADDR_ANY;
+    server_listener_addr.sin_port = htons(portno);
+
+    /* Now bind the host address using bind() call.*/
+    if (bind(server_listener_socket, (struct sockaddr *) &server_listener_addr, sizeof(server_listener_addr)) < 0) {
+        fprintf(stdout, "ERROR binding socket");
+        exit(1);
+    }
+
+    /* Now start listening for the clients, here process will
       * go in sleep mode and will wait for the incoming connection
-   */
-   
-   listen(sockfd,5);
-   clilen = sizeof(cli_addr);
-   
-   fprintf(stdout, "now listening on address %d, port %d\n", serv_addr.sin_addr.s_addr, ntohs(serv_addr.sin_port));
+    */
+    listen(server_listener_socket, 5);
 
-   /* Accept actual connection from the client */
-   newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, (socklen_t *)&clilen);
-	
-   fprintf(stdout, "accepted fd %d\n", newsockfd);
+    fprintf(stdout, "now listening on address %d, port %d\n", server_listener_addr.sin_addr.s_addr, ntohs(server_listener_addr.sin_port));
 
-   if (newsockfd < 0) {
-      perror("ERROR on accept");
-      exit(1);
-   }
+    int size_client_control_addr = sizeof(client_control_addr);
 
-   /* If connection is established then start communicating */
-   bzero(buffer,256);
-   n = recv( newsockfd,buffer,255, 0);
-   
-   if (n < 0) {
-      perror("ERROR reading from socket");
-      exit(1);
-   }
-   
-   printf("Here is the message: %s\n",buffer);
-   
-   /* Write a response to the client */
-   n = send(newsockfd,"I got your message",18, 0);
-   
-   if (n < 0) {
-      perror("ERROR writing to socket");
-      exit(1);
-   }
+
+
+
+
+
+    client_control_socket = accept(server_listener_socket, (struct sockaddr *)&client_control_addr, (socklen_t *)&size_client_control_addr);
+    
+    fprintf(stdout, "accepted fd %d\n", client_control_socket);
+    
+    if (client_control_socket < 0) {
+        fprintf(stdout, "ERROR on accepting socket");
+        exit(1);
+    }
+
+
+
+    const mlab::AcceptedSocket* ctrl_socket(socket->Accept());
+    if (!ctrl_socket) continue;
+
+    ServerConfig* server_config =
+        new ServerConfig(ctrl_socket);
+
+    //// Each server socket runs on a different thread.
+    //pthread_t thread;
+    //
+    //// int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+    //                      void *(*start_routine) (void *), void *arg);
+    //int rc = pthread_create(&thread, NULL, mbm::ServerThread,
+    //                        (void*)server_config);
+    //if (rc != 0) {
+    //  std::cerr << "Failed to create thread: " << strerror(errno) << " ["
+    //            << errno << "]\n";
+    //  return 1;
+
+
+
+//**   ////>>>>>>>>>
+//**   /* Accept actual connection from the client */
+//**   client_control_socket = accept(server_listener_socket, (struct sockaddr *)&client_control_addr, (socklen_t *)&size_client_control_addr);
+//**	
+//**   fprintf(stdout, "accepted fd %d\n", client_control_socket);
+//**
+//**   if (client_control_socket < 0) {
+//**      perror("ERROR on accept");
+//**      exit(1);
+//**   }
+//**
+//**   /* If connection is established then start communicating */
+//**   bzero(buffer,256);
+//**   n = recv( client_control_socket,buffer,255, 0);
+//**   
+//**   if (n < 0) {
+//**      perror("ERROR reading from socket");
+//**      exit(1);
+//**   }
+//**   
+//**   printf("Here is the message: %s\n",buffer);
+//**   
+//**   /* Write a response to the client */
+//**   n = send(client_control_socket,"I got your message",18, 0);
+//**   
+//**   if (n < 0) {
+//**      perror("ERROR writing to socket");
+//**      exit(1);
+//**   }
       
    return 0;
 }

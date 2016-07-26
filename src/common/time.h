@@ -2,6 +2,8 @@
 
 #include <string>
 
-namespace mbm {
-	uint64_t GetTimeNS();
-}  // namespace mbm
+#define NS_PER_SEC	1000000000		
+
+//namespace mbm {
+//	uint64_t GetTimeNS();
+//}  // namespace mbm
