@@ -63,12 +63,8 @@ int main( int argc, char *argv[] ) {
     }
 
 
+    ///// >>> while true, accept new connections, start new threads....
 
-    const mlab::AcceptedSocket* ctrl_socket(socket->Accept());
-    if (!ctrl_socket) continue;
-
-    ServerConfig* server_config =
-        new ServerConfig(ctrl_socket);
 
     //// Each server socket runs on a different thread.
     //pthread_t thread;
