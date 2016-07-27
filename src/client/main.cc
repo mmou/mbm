@@ -77,6 +77,7 @@ namespace mbm {
         /* Our process ID and Session ID */
         pid_t pid, sid;
 
+        char buffer[256];
 
         fprintf(stdout, "creating client socket\n");
 
@@ -104,36 +105,23 @@ namespace mbm {
         // int connect(int socket, const struct sockaddr *address, socklen_t address_len);
         if (connect(client_control_socket, (struct sockaddr *)&all_args.server_listener_address, sizeof(all_args.server_listener_address)) != 0) {
             fprintf(stdout, "FAILED TO CONNECT: %s", strerror(errno));          
+            exit(EXIT_FAILURE);
         }
 
+        /* Send message to the server */
+        if (send(client_control_socket, "HELLO SERVER!", 13, 0) < 0) {
+            fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
 
-//**        char buffer[256];
-//**        int  n;
-
-//**        printf("Please enter the message: ");
-//**        bzero(buffer,256);
-//**        fgets(buffer,255,stdin);
-
-//**        /* Send message to the server */
-//**        //n = write(client_control_socket, buffer, strlen(buffer));
-
-//**        n = send(client_control_socket, buffer, strlen(buffer), 0);
-
-//**        if (n < 0) {
-//**          perror("ERROR writing to socket");
-//**          exit(1);
-//**        }
-
-//**        /* Now read server response */
-//**        bzero(buffer,256);
-//**        n = recv(client_control_socket, buffer, 255, 0);
-
-//**        if (n < 0) {
-//**          perror("ERROR reading from socket");
-//**          exit(1);
-//**        }
-
-//**        printf("%s\n",buffer);
+        /* Now read server response */
+        bzero(buffer,256);
+        if (recv(client_control_socket, buffer, 255, 0) < 0) {
+            fprintf(stdout, "ERROR reading from socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        
+        printf("%s\n",buffer);
 
     }
 }	// namespace mbm
