@@ -18,7 +18,7 @@
 
 #include <syslog.h>
 
-//#include "common/packet.h"
+#include "common/config.h"
 
 #include "main.h"
 
@@ -43,13 +43,6 @@ char reply_string[REPLY_MAXLENGTH];
 struct timeval time_start, time_now, time_delta;
 
 namespace mbm {
-
-    struct mbm_config {
-        int rate;
-        int rtt;
-        int mss;
-        int burst_size;
-    };
 
     struct all_args {
         sockaddr_in server_listener_address;
@@ -108,20 +101,38 @@ namespace mbm {
             exit(EXIT_FAILURE);
         }
 
-        /* Send message to the server */
-        if (send(client_control_socket, "HELLO SERVER!", 13, 0) < 0) {
-            fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
 
-        /* Now read server response */
-        bzero(buffer,256);
-        if (recv(client_control_socket, buffer, 255, 0) < 0) {
-            fprintf(stdout, "ERROR reading from socket: %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        
-        printf("%s\n",buffer);
+        //////////////////
+
+        // TODO: send serialized config to server
+
+        // TODO: receive port from server
+
+        // TODO: create client_mbm_socket, connect to that port
+
+        // TODO: client_control_socket sends READY
+
+        // TODO: client_mbm_socket sends READY
+
+        // test starts now
+
+        // ...
+
+
+//        /* Send message to the server */
+//        if (send(client_control_socket, "HELLO SERVER!", 13, 0) < 0) {
+//            fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
+//            exit(EXIT_FAILURE);
+//        }
+//
+//        /* Now read server response */
+//        bzero(buffer,256);
+//        if (recv(client_control_socket, buffer, 255, 0) < 0) {
+//            fprintf(stdout, "ERROR reading from socket: %s", strerror(errno));
+//            exit(EXIT_FAILURE);
+//        }
+//        
+//        printf("%s\n",buffer);
 
     }
 }	// namespace mbm

@@ -26,21 +26,38 @@ namespace mbm {
         char buffer[256];
         int n;
 
-        fprintf(stdout, "SERVER THREAD...");
-        /* If connection is established then start communicating */
-        bzero(buffer,256);
-        if (recv( client_control_socket,buffer,255, 0) < 0) {
-           perror("SERVER THREAD: ERROR reading from socket");
-           exit(EXIT_FAILURE);
-        }
-       
-        printf("SERVER THREAD: Here is the message: %s\n",buffer);
-       
-        /* Write a response to the client */        
-        if (send(client_control_socket,"I got your message",18, 0) < 0) {
-            perror("ERROR writing to socket");
-            exit(EXIT_FAILURE);
-        }
+
+        // TODO: receive config. deserialize it.
+
+        // TODO: create server_mbm_socket (try to pick a port)
+
+        // TODO: send port to client_control_socket
+
+        // TODO: server_mbm_socket accept connection from client_mbm_socket
+
+        // TODO:  client_control_socket receive READY
+
+        // TODO:  client_mbm_socket receive READY         
+
+        // TODO: RunCBR(client_mbm_socket, client_control_socket, config)
+
+
+        //////////////////
+
+//        /* If connection is established then start communicating */
+//        bzero(buffer,256);
+//        if (recv( client_control_socket,buffer,255, 0) < 0) {
+//           perror("SERVER THREAD: ERROR reading from socket");
+//           exit(EXIT_FAILURE);
+//        }
+//       
+//        printf("SERVER THREAD: Here is the message: %s\n",buffer);
+//       
+//        /* Write a response to the client */        
+//        if (send(client_control_socket,"I got your message",18, 0) < 0) {
+//            perror("ERROR writing to socket");
+//            exit(EXIT_FAILURE);
+//        }
         
         pthread_exit(NULL);
 
@@ -79,6 +96,8 @@ int main( int argc, char *argv[] ) {
     int size_client_control_addr = sizeof(client_control_addr);
 
     while (true) {
+        // TODO: be able to accept multiple connections, by using select() 
+        
         client_control_socket = accept(server_listener_socket, (struct sockaddr *)&client_control_addr, (socklen_t *)&size_client_control_addr);
         
         fprintf(stdout, "accepted fd %d\n", client_control_socket);
