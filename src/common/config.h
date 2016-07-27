@@ -4,8 +4,11 @@
 namespace mbm {
 
 	// struct or class?
-	struct mbm_config;
-	
-}  // namespace mbm
+  struct mbm_config {
+      int rate;
+      int rtt;
+      int mss;
+      int burst_size;
+  };
 
-#endif  // COMMON_CONFIG_H_
+}  // namespace mbm

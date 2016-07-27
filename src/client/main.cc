@@ -49,7 +49,6 @@ namespace mbm {
         mbm_config mbm_args;
     };
 
-
     void Run(all_args all_args) {
 
         unsigned short opt_port = DEFAULT_PORT;

@@ -1,6 +1,6 @@
 /* from mbm */
 
-#include "common/result.h"
+#include "results.h"
 
 namespace mbm {
 const char* kResultStr[NUM_RESULTS] = {"FAIL", "PASS", "INCONCLUSIVE", "ERROR"};
