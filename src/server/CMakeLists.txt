@@ -7,6 +7,9 @@ set(PROJECT_ROOT_DIR ${PROJECT_SOURCE_DIR}/../..)
 
 find_package(Threads REQUIRED)
 
+include_directories(
+	${PROJECT_ROOT_DIR}/src)
+
 file(GLOB_RECURSE SRC_FILES *.cc)
 
 # Build the libraries

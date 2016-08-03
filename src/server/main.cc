@@ -15,6 +15,10 @@
 #include <errno.h>
 #include <iostream>
 
+#include "common/config.h"
+#include "common/packet.h"
+
+
 #include "main.h"
 
 namespace mbm {
@@ -23,11 +27,18 @@ namespace mbm {
         intptr_t client_control_socket = (intptr_t)(client_control_socket_ptr);
         fprintf(stdout, "SERVER THREAD: accepted fd %d\n", client_control_socket);
 
-        char buffer[256];
-        int n;
-
-
         // TODO: receive config. deserialize it.
+        char buffer[sizeof(Config)];
+        if (recv(client_control_socket,buffer,sizeof(Config), 0) < 0) {
+           perror("SERVER THREAD: ERROR reading from socket");
+           exit(EXIT_FAILURE);
+        }
+
+        Packet packet_config(buffer, sizeof(Config));
+        const Config config = packet_config.as<Config>();
+
+        printf("SERVER THREAD: Here is the message: %s\n",buffer);
+        printf("SERVER THREAD: config rate: %d, rtt: %d, mss: %d, burst_size: %d\n", config.rate, config.rtt, config.mss, config.burst_size);        
 
         // TODO: create server_mbm_socket (try to pick a port)
 

@@ -19,6 +19,7 @@
 #include <syslog.h>
 
 #include "common/config.h"
+#include "common/packet.h"
 
 #include "main.h"
 
@@ -46,7 +47,7 @@ namespace mbm {
 
     struct all_args {
         sockaddr_in server_listener_address;
-        mbm_config mbm_args;
+        Config mbm_args;
     };
 
     void Run(all_args all_args) {
@@ -101,9 +102,14 @@ namespace mbm {
         }
 
 
-        //////////////////
-
         // TODO: send serialized config to server
+        Packet config_packet(all_args.mbm_args);
+        printf("CLIENT: config rate: %d, rtt: %d, mss: %d, burst_size: %d\n", all_args.mbm_args.rate, all_args.mbm_args.rtt, all_args.mbm_args.mss, all_args.mbm_args.burst_size);
+        if (send(client_control_socket, config_packet.buffer(), config_packet.length(), 0) < 0) {
+            fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+
 
         // TODO: receive port from server
 
@@ -140,6 +146,7 @@ namespace mbm {
 mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
 
     mbm::all_args new_args;
+    mbm::Config new_config;
     new_args.server_listener_address.sin_family = AF_INET;
 
     static struct option long_opts[] = 
@@ -166,19 +173,19 @@ mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
                 //fprintf(stdout, "set to be: %d\n", new_args.server_listener_address.sin_port);
                 break;
             case 'r':
-                new_args.mbm_args.rate = atoi(optarg);
+                new_config.rate = atoi(optarg);
 
                 break;
             case 't':
-                new_args.mbm_args.rtt = atoi(optarg);
+                new_config.rtt = atoi(optarg);
 
                 break;
             case 'm':
-                new_args.mbm_args.mss = atoi(optarg);
+                new_config.mss = atoi(optarg);
 
                 break;
             case 'b':
-                new_args.mbm_args.burst_size = atoi(optarg);
+                new_config.burst_size = atoi(optarg);
 
                 break;  
             case '?':
@@ -188,6 +195,8 @@ mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
                 exit(EXIT_FAILURE);                            
         }
     }
+
+    new_args.mbm_args = new_config;
     return new_args;
 }
 

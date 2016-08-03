@@ -3,12 +3,15 @@
 
 namespace mbm {
 
-	// struct or class?
-  struct mbm_config {
-      int rate;
-      int rtt;
-      int mss;
-      int burst_size;
-  };
+	class Config {
+	public:
+		Config();
+		Config(int rate, int rtt, int mss, int burst_size);
+
+		int rate;
+		int rtt;
+		int mss;
+		int burst_size;
+	  };
 
 }  // namespace mbm

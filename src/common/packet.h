@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-namespace mlab {
+namespace mbm { //mlab {
 
 // TODO(dominich): Should this take care of htonl/ntohl calls?
 class Packet {

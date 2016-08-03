@@ -14,7 +14,7 @@
 
 #include "packet.h"
 
-namespace mlab {
+namespace mbm { //mlab {
 
 Packet::Packet(const std::vector<uint8_t>& data)
     : data_(data) {

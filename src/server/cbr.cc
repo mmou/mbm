@@ -435,6 +435,6 @@ Result RunCBR(int client_mbm_socket,
 //  
 //  std::cout << "Done CBR" << std::endl;
 //  return test_result;
-//}
+}
 
 }  // namespace mbm
