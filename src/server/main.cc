@@ -15,9 +15,9 @@
 #include <errno.h>
 #include <iostream>
 
-#include "common/config.h"
-#include "common/packet.h"
-#include "common/constants.h"
+#include "utils/config.h"
+#include "utils/packet.h"
+#include "utils/constants.h"
 
 #include "main.h"
 

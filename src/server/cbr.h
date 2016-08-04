@@ -1,4 +1,4 @@
-#include "common/result.h"
+#include "utils/result.h"
 
 namespace mbm {
 class mbm_config;

@@ -1,5 +1,5 @@
 #include "cbr.h"
-#include "common/config.h"
+#include "utils/config.h"
 
 namespace mbm {
 

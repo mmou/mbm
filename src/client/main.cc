@@ -18,9 +18,9 @@
 
 #include <syslog.h>
 
-#include "common/config.h"
-#include "common/packet.h"
-#include "common/constants.h"
+#include "utils/config.h"
+#include "utils/packet.h"
+#include "utils/constants.h"
 
 #include "main.h"
 
@@ -74,31 +74,15 @@ namespace mbm {
 
         fprintf(stdout, "creating client socket\n");
 
-        /* Prepare TCP socket. */
-        client_control_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if ( client_control_socket < 0 ) {
-            fprintf(stdout, "ERROR creating socket: %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
+        // create socket
+        scoped_ptr<Socket> client_control_socket(Socket::create());
 
-        /* Bind to any address on local machine */
         client_control_address.sin_family = AF_INET;
         client_control_address.sin_addr.s_addr = INADDR_ANY;
         client_control_address.sin_port = htons(opt_port);
+        client_control_socket->bind(client_control_address);
 
-        fprintf(stdout, "binding client socket\n");
-
-        if (bind(client_control_socket, (struct sockaddr *)&client_control_address, sizeof(client_control_address)) < 0) {
-            fprintf(stdout, "ERROR binding socket: %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-
-        fprintf(stdout, "connecting to %d\n", all_args.server_listener_address.sin_port);
-        //connect to server
-        if (connect(client_control_socket, (struct sockaddr *)&all_args.server_listener_address, sizeof(all_args.server_listener_address)) != 0) {
-            fprintf(stdout, "FAILED TO CONNECT: %s", strerror(errno));          
-            exit(EXIT_FAILURE);
-        }
+        client_control_socket->connect(server_listener_address);
 
         // send serialized config to server
         Packet config_packet(all_args.mbm_args);
