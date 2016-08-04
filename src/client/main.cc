@@ -20,6 +20,7 @@
 
 #include "common/config.h"
 #include "common/packet.h"
+#include "common/constants.h"
 
 #include "main.h"
 
@@ -34,7 +35,6 @@ char *tcp_buffer;
 struct tcp_info tcp_info;
 int tcp_info_length;
 int client_control_socket;
-int tcp_work_socket;
 
 /* Buffer for reply string */
 int reply_size;
@@ -95,29 +95,81 @@ namespace mbm {
 
         fprintf(stdout, "connecting to %d\n", all_args.server_listener_address.sin_port);
         //connect to server
-        // int connect(int socket, const struct sockaddr *address, socklen_t address_len);
         if (connect(client_control_socket, (struct sockaddr *)&all_args.server_listener_address, sizeof(all_args.server_listener_address)) != 0) {
             fprintf(stdout, "FAILED TO CONNECT: %s", strerror(errno));          
             exit(EXIT_FAILURE);
         }
 
-
-        // TODO: send serialized config to server
+        // send serialized config to server
         Packet config_packet(all_args.mbm_args);
-        printf("CLIENT: config rate: %d, rtt: %d, mss: %d, burst_size: %d\n", all_args.mbm_args.rate, all_args.mbm_args.rtt, all_args.mbm_args.mss, all_args.mbm_args.burst_size);
         if (send(client_control_socket, config_packet.buffer(), config_packet.length(), 0) < 0) {
             fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
             exit(EXIT_FAILURE);
         }
 
+        // receive port from server
+        char port_buffer[sizeof(uint16_t)];
+        if (recv(client_control_socket, port_buffer, sizeof(uint16_t), 0) < 0) {
+            fprintf(stdout, "ERROR reading from socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        Packet port_packet(port_buffer, sizeof(uint16_t));        
+        uint16_t port = ntohs(port_packet.as<uint16_t>());
 
-        // TODO: receive port from server
+        fprintf(stdout, "THIS IS PORT: %d\n", port);
 
-        // TODO: create client_mbm_socket, connect to that port
 
-        // TODO: client_control_socket sends READY
 
-        // TODO: client_mbm_socket sends READY
+
+        // create client_mbm_socket, connect to that port
+        /* Prepare TCP socket. */
+        int client_mbm_socket;
+        struct sockaddr_in client_mbm_address, server_mbm_address;
+        client_mbm_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if ( client_mbm_socket < 0 ) {
+            fprintf(stdout, "ERROR creating socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+
+        /* Bind to any address on local machine */
+        unsigned short opt_port2 = DEFAULT_PORT2;
+        client_mbm_address.sin_family = AF_INET;
+        client_mbm_address.sin_addr.s_addr = INADDR_ANY;
+        client_mbm_address.sin_port = htons(opt_port2);
+
+        fprintf(stdout, "binding client mbm socket\n");
+
+        if (bind(client_mbm_socket, (struct sockaddr *)&client_mbm_address, sizeof(client_mbm_address)) < 0) {
+            fprintf(stdout, "ERROR binding socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+
+        /* Bind to any address on local machine */
+        server_mbm_address.sin_family = AF_INET;
+        server_mbm_address.sin_addr.s_addr = INADDR_ANY;
+        server_mbm_address.sin_port = htons(port);
+
+        fprintf(stdout, "connecting to %d\n", server_mbm_address.sin_port);
+        //connect to server
+        if (connect(client_mbm_socket, (struct sockaddr *)&server_mbm_address, sizeof(server_mbm_address)) != 0) {
+            fprintf(stdout, "FAILED TO CONNECT: %s", strerror(errno));          
+            exit(EXIT_FAILURE);
+        }
+
+
+        // client_control_socket sends READY
+        Packet control_ready_packet(READY, strlen(READY));
+        if (send(client_control_socket, control_ready_packet.buffer(), control_ready_packet.length(), 0) < 0) {
+            fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+
+        // client_mbm_socket sends READY
+        Packet mbm_ready_packet(READY, strlen(READY));
+        if (send(client_mbm_socket, mbm_ready_packet.buffer(), mbm_ready_packet.length(), 0) < 0) {
+            fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
 
         // test starts now
 

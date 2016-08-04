@@ -17,7 +17,7 @@
 
 #include "common/config.h"
 #include "common/packet.h"
-
+#include "common/constants.h"
 
 #include "main.h"
 
@@ -27,28 +27,93 @@ namespace mbm {
         intptr_t client_control_socket = (intptr_t)(client_control_socket_ptr);
         fprintf(stdout, "SERVER THREAD: accepted fd %d\n", client_control_socket);
 
-        // TODO: receive config. deserialize it.
-        char buffer[sizeof(Config)];
-        if (recv(client_control_socket,buffer,sizeof(Config), 0) < 0) {
+        // receive config. deserialize it.
+        char config_buffer[sizeof(Config)];
+        if (recv(client_control_socket,config_buffer,sizeof(Config), 0) < 0) {
            perror("SERVER THREAD: ERROR reading from socket");
            exit(EXIT_FAILURE);
         }
 
-        Packet packet_config(buffer, sizeof(Config));
-        const Config config = packet_config.as<Config>();
+        Packet config_packet(config_buffer, sizeof(Config));
+        const Config config = config_packet.as<Config>();
 
-        printf("SERVER THREAD: Here is the message: %s\n",buffer);
-        printf("SERVER THREAD: config rate: %d, rtt: %d, mss: %d, burst_size: %d\n", config.rate, config.rtt, config.mss, config.burst_size);        
+        // create server_mbm_socket (try to pick a port)
+        int server_mbm_socket;
+        struct sockaddr_in server_mbm_addr;
 
-        // TODO: create server_mbm_socket (try to pick a port)
+        server_mbm_socket = socket(AF_INET, SOCK_STREAM, 0); // IPPROTO_TCP?
+        if (server_mbm_socket < 0) {
+            fprintf(stdout, "ERROR creating socket");
+            exit(EXIT_FAILURE);
+        }
 
-        // TODO: send port to client_control_socket
+        int port = BASE_PORT;
+        server_mbm_addr.sin_family = AF_INET;
+        server_mbm_addr.sin_addr.s_addr = INADDR_ANY;
+        server_mbm_addr.sin_port = htons(port);
 
-        // TODO: server_mbm_socket accept connection from client_mbm_socket
+        /* Now bind the host address using bind() call.*/
+        if (bind(server_mbm_socket, (struct sockaddr *) &server_mbm_addr, sizeof(server_mbm_addr)) < 0) {
+            fprintf(stdout, "ERROR binding socket: %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
 
-        // TODO:  client_control_socket receive READY
+        // send port to client_control_socket
+        ssize_t num_bytes;
+        Packet port_packet(htons(port));
+        if (send(client_control_socket, port_packet.buffer(), port_packet.length(), 0) < 0) {
+            perror("ERROR writing to socket");
+            exit(EXIT_FAILURE);
+        }
+
+        fprintf(stdout, "THIS IS PORT: %d\n", port);
+
+
+        int client_mbm_socket;
+        struct sockaddr_in client_mbm_addr;
+        // server_mbm_socket accept connection from client_mbm_socket
+        listen(server_mbm_socket, 5);
+
+        fprintf(stdout, "now listening on address %d, port %d\n", server_mbm_addr.sin_addr.s_addr, ntohs(server_mbm_addr.sin_port));
+
+        int size_client_mbm_addr = sizeof(client_mbm_addr);
+
+        client_mbm_socket = accept(server_mbm_socket, (struct sockaddr *)&client_mbm_addr, (socklen_t *)&size_client_mbm_addr);
+        
+        fprintf(stdout, "accepted fd %d\n", client_mbm_socket);
+        
+        if (client_mbm_socket < 0) {
+            fprintf(stdout, "ERROR on accepting socket");
+            exit(EXIT_FAILURE);
+        }
+
+
+        // client_control_socket receive READY
+        char control_ready_buffer[num_bytes];
+        if (recv(client_control_socket,control_ready_buffer,num_bytes, 0) < 0) {
+           perror("SERVER THREAD: ERROR reading from socket");
+           exit(EXIT_FAILURE);
+        }
+
+        Packet control_ready_packet(control_ready_buffer, num_bytes);
+        
+        std::string control_ready = control_ready_packet.str();
+
+
 
         // TODO:  client_mbm_socket receive READY         
+        char mbm_ready_buffer[num_bytes];
+        if (recv(client_control_socket,mbm_ready_buffer,num_bytes, 0) < 0) {
+           perror("SERVER THREAD: ERROR reading from socket");
+           exit(EXIT_FAILURE);
+        }
+
+        Packet mbm_ready_packet(mbm_ready_buffer, num_bytes);
+        
+        std::string mbm_ready = mbm_ready_packet.str();
+
+
+
 
         // TODO: RunCBR(client_mbm_socket, client_control_socket, config)
 

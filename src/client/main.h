@@ -7,7 +7,14 @@
 #define DEFAULT_DAEMON      1
 #define DEFAULT_FILENAME    "mbm.log"
 #define DEFAULT_LOOPS       100
+
+
+
+
 #define DEFAULT_PORT        42237
+#define DEFAULT_PORT2        42238
+
+
 #define DEFAULT_SLEEP       1
 
 #define MAX_TCPOPT          256
