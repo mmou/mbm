@@ -16,102 +16,47 @@
 #include <iostream>
 
 #include "utils/config.h"
-#include "utils/packet.h"
 #include "utils/constants.h"
+#include "utils/scoped_ptr.h"
+#include "utils/socket.h"
 
 #include "main.h"
 
 namespace mbm {
 
     void* ServerThread(void* client_control_socket_ptr) {
-        intptr_t client_control_socket = (intptr_t)(client_control_socket_ptr);
-        fprintf(stdout, "SERVER THREAD: accepted fd %d\n", client_control_socket);
+        scoped_ptr<Socket> client_control_socket(reinterpret_cast<Socket*>(client_control_socket_ptr));
+        fprintf(stdout, "SERVER THREAD: accepted %d\n", client_control_socket->fd());
 
         // receive config. deserialize it.
-        char config_buffer[sizeof(Config)];
-        if (recv(client_control_socket,config_buffer,sizeof(Config), 0) < 0) {
-           perror("SERVER THREAD: ERROR reading from socket");
-           exit(EXIT_FAILURE);
-        }
-
-        Packet config_packet(config_buffer, sizeof(Config));
-        const Config config = config_packet.as<Config>();
+        const Config config = client_control_socket->receiveOrDie(sizeof(Config)).as<Config>();
 
         // create server_mbm_socket (try to pick a port)
-        int server_mbm_socket;
-        struct sockaddr_in server_mbm_addr;
+        scoped_ptr<Socket> server_mbm_socket(new Socket());
+        server_mbm_socket->bindOrDie(BASE_PORT);
 
-        server_mbm_socket = socket(AF_INET, SOCK_STREAM, 0); // IPPROTO_TCP?
-        if (server_mbm_socket < 0) {
-            fprintf(stdout, "ERROR creating socket");
-            exit(EXIT_FAILURE);
-        }
-
-        int port = BASE_PORT;
-        server_mbm_addr.sin_family = AF_INET;
-        server_mbm_addr.sin_addr.s_addr = INADDR_ANY;
-        server_mbm_addr.sin_port = htons(port);
-
-        /* Now bind the host address using bind() call.*/
-        if (bind(server_mbm_socket, (struct sockaddr *) &server_mbm_addr, sizeof(server_mbm_addr)) < 0) {
-            fprintf(stdout, "ERROR binding socket: %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
+        // server_mbm_socket accept connection from client_mbm_socket
+        server_mbm_socket->listenOrDie();
 
         // send port to client_control_socket
-        ssize_t num_bytes;
-        Packet port_packet(htons(port));
-        if (send(client_control_socket, port_packet.buffer(), port_packet.length(), 0) < 0) {
-            perror("ERROR writing to socket");
-            exit(EXIT_FAILURE);
-        }
+        Packet port_packet(htons(BASE_PORT));
+        client_control_socket->sendOrDie(port_packet);
+        fprintf(stdout, "THIS IS PORT: %d\n", BASE_PORT);
 
+        // server_mbm_socket accept connection from client_mbm_socket
+        const mbm::Socket* client_mbm_socket(server_mbm_socket->acceptOrDie());
+
+
+        uint16_t port = ntohs(client_control_socket->receiveOrDie(sizeof(uint16_t)).as<uint16_t>());
         fprintf(stdout, "THIS IS PORT: %d\n", port);
 
 
-        int client_mbm_socket;
-        struct sockaddr_in client_mbm_addr;
-        // server_mbm_socket accept connection from client_mbm_socket
-        listen(server_mbm_socket, 5);
-
-        fprintf(stdout, "now listening on address %d, port %d\n", server_mbm_addr.sin_addr.s_addr, ntohs(server_mbm_addr.sin_port));
-
-        int size_client_mbm_addr = sizeof(client_mbm_addr);
-
-        client_mbm_socket = accept(server_mbm_socket, (struct sockaddr *)&client_mbm_addr, (socklen_t *)&size_client_mbm_addr);
-        
-        fprintf(stdout, "accepted fd %d\n", client_mbm_socket);
-        
-        if (client_mbm_socket < 0) {
-            fprintf(stdout, "ERROR on accepting socket");
-            exit(EXIT_FAILURE);
-        }
-
-
         // client_control_socket receive READY
-        char control_ready_buffer[num_bytes];
-        if (recv(client_control_socket,control_ready_buffer,num_bytes, 0) < 0) {
-           perror("SERVER THREAD: ERROR reading from socket");
-           exit(EXIT_FAILURE);
-        }
+        ssize_t num_bytes;
+        std::string control_ready = (client_control_socket->receiveOrDie(num_bytes)).str();
 
-        Packet control_ready_packet(control_ready_buffer, num_bytes);
-        
-        std::string control_ready = control_ready_packet.str();
-
-
-
-        // TODO:  client_mbm_socket receive READY         
-        char mbm_ready_buffer[num_bytes];
-        if (recv(client_control_socket,mbm_ready_buffer,num_bytes, 0) < 0) {
-           perror("SERVER THREAD: ERROR reading from socket");
-           exit(EXIT_FAILURE);
-        }
-
-        Packet mbm_ready_packet(mbm_ready_buffer, num_bytes);
-        
-        std::string mbm_ready = mbm_ready_packet.str();
-
+        // client_mbm_socket receive READY         
+        std::string mbm_ready = (client_mbm_socket->receiveOrDie(num_bytes)).str();
 
 
 
@@ -142,55 +87,23 @@ namespace mbm {
 } // namespace mbm
 
 int main( int argc, char *argv[] ) {
-    int server_listener_socket, client_control_socket;
-    struct sockaddr_in server_listener_addr, client_control_addr;
+    struct sockaddr_in server_listener_addr;
 
-    int portno;
-
-    server_listener_socket = socket(AF_INET, SOCK_STREAM, 0); // IPPROTO_TCP?
-    if (server_listener_socket < 0) {
-        fprintf(stdout, "ERROR creating socket");
-        exit(EXIT_FAILURE);
-    }
-
-    portno = DEFAULT_PORT;
-    server_listener_addr.sin_family = AF_INET;
-    server_listener_addr.sin_addr.s_addr = INADDR_ANY;
-    server_listener_addr.sin_port = htons(portno);
-
-    /* Now bind the host address using bind() call.*/
-    if (bind(server_listener_socket, (struct sockaddr *) &server_listener_addr, sizeof(server_listener_addr)) < 0) {
-        fprintf(stdout, "ERROR binding socket: %s", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-
-    listen(server_listener_socket, 5);
-
-    fprintf(stdout, "now listening on address %d, port %d\n", server_listener_addr.sin_addr.s_addr, ntohs(server_listener_addr.sin_port));
-
-    int size_client_control_addr = sizeof(client_control_addr);
+    // create socket
+    scoped_ptr<mbm::Socket> server_listener_socket(new mbm::Socket());
+    server_listener_socket->bindOrDie(DEFAULT_PORT);
+    server_listener_socket->listenOrDie();
 
     while (true) {
         // TODO: be able to accept multiple connections, by using select() 
-        
-        client_control_socket = accept(server_listener_socket, (struct sockaddr *)&client_control_addr, (socklen_t *)&size_client_control_addr);
-        
-        fprintf(stdout, "accepted fd %d\n", client_control_socket);
-        
-        if (client_control_socket < 0) {
-            fprintf(stdout, "ERROR on accepting socket");
-            exit(EXIT_FAILURE);
-        }
 
-
-        fprintf(stdout, "creating thread...");
+        const mbm::Socket* client_control_socket(server_listener_socket->acceptOrDie());
 
         // Each server socket runs on a different thread.
         pthread_t thread;
-        
-        // int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
-        //                     void *(*start_routine) (void *), void *arg);
+        int fd = client_control_socket->fd();
+        fprintf(stdout, "main THREAD: fd %d\n", fd);
+
         int rc = pthread_create(&thread, NULL, mbm::ServerThread, (void*)client_control_socket);
         if (rc != 0) {
             fprintf(stdout, "ERROR creating thread" ); 

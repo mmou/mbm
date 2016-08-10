@@ -49,46 +49,25 @@ namespace mbm {
 
     void Run(all_args all_args) {
 
-        unsigned short opt_port = DEFAULT_PORT;
-
-
-        /* Options with their defaults */
-        unsigned short opt_buffer = DEFAULT_BUFFER;
-        unsigned short opt_daemon = 0;
-        unsigned short opt_debug = 0;
-        char *opt_filename = NULL;
-        unsigned short opt_reply = 0;
-        /* Program logic */
-        unsigned short debug_counter = DEFAULT_LOOPS;
-        int client_length;
-        int recv_bytes;
-        int status;
-        static char tcp_options_text[MAX_TCPOPT];
-        /* Our process ID and Session ID */
-        pid_t pid, sid;
-
-        char buffer[256];
-
-        fprintf(stdout, "creating client socket\n");
-
         // create socket
         scoped_ptr<Socket> client_control_socket(new Socket());
-        client_control_socket->bindOrDie(opt_port);
-        client_control_socket->connectOrDie(&server_listener_address);
+        client_control_socket->bindOrDie(DEFAULT_PORT);
+        client_control_socket->connectOrDie(all_args.server_listener_address);
 
         // send serialized config to server
         Packet config_packet(all_args.mbm_args);
         client_control_socket->sendOrDie(config_packet);
-
 
         // receive port from server
         uint16_t port = ntohs(client_control_socket->receiveOrDie(sizeof(uint16_t)).as<uint16_t>());
         fprintf(stdout, "THIS IS PORT: %d\n", port);
 
         // create client_mbm_socket, connect to that port
+
+
         scoped_ptr<Socket> client_mbm_socket(new Socket());
         client_mbm_socket->bindOrDie(DEFAULT_PORT2);
-        client_control_socket->connectOrDie(port);
+        client_mbm_socket->connectOrDie(all_args.server_listener_address.sin_addr.s_addr, port);
 
 
         // client_control_socket sends READY
@@ -146,7 +125,7 @@ mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
     while ((opt = getopt_long(argc, argv, "a:p:r:t:m:b:", long_opts, &opt_index)) != -1) {
         switch (opt) {
             case 'a':
-                inet_aton(optarg, &new_args.server_listener_address.sin_addr);
+                inet_pton(AF_INET, optarg, &new_args.server_listener_address.sin_addr);
                 break;
             case 'p':
                 new_args.server_listener_address.sin_port = htons(atoi(optarg)); // TODO: type check
@@ -155,19 +134,15 @@ mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
                 break;
             case 'r':
                 new_config.rate = atoi(optarg);
-
                 break;
             case 't':
                 new_config.rtt = atoi(optarg);
-
                 break;
             case 'm':
                 new_config.mss = atoi(optarg);
-
                 break;
             case 'b':
                 new_config.burst_size = atoi(optarg);
-
                 break;  
             case '?':
                 fprintf(stdout, "ERROR: invalid arguments");
