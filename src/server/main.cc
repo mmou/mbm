@@ -44,20 +44,16 @@ namespace mbm {
         fprintf(stdout, "THIS IS PORT: %d\n", BASE_PORT);
 
         // server_mbm_socket accept connection from client_mbm_socket
-        const mbm::Socket* client_mbm_socket(server_mbm_socket->acceptOrDie());
-
-
-        uint16_t port = ntohs(client_control_socket->receiveOrDie(sizeof(uint16_t)).as<uint16_t>());
-        fprintf(stdout, "THIS IS PORT: %d\n", port);
-
+        mbm::Socket* client_mbm_socket(server_mbm_socket->acceptOrDie());
 
         // client_control_socket receive READY
-        ssize_t num_bytes;
-        std::string control_ready = (client_control_socket->receiveOrDie(num_bytes)).str();
+        // ssize_t num_bytes;
+        std::string control_ready = (client_control_socket->receiveOrDie(strlen(READY))).str();
+        fprintf(stdout, "control received %s\n", control_ready.c_str());
 
         // client_mbm_socket receive READY         
-        std::string mbm_ready = (client_mbm_socket->receiveOrDie(num_bytes)).str();
-
+        std::string mbm_ready = (client_mbm_socket->receiveOrDie(strlen(READY))).str();
+        fprintf(stdout, "mbm received %s\n", mbm_ready.c_str());
 
 
         // TODO: RunCBR(client_mbm_socket, client_control_socket, config)

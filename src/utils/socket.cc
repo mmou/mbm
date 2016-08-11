@@ -105,10 +105,12 @@ namespace mbm {
 
 
 	void Socket::sendOrDie(Packet packet) {
-		fprintf(stdout, "sending packet");
         if (send(fd_, packet.buffer(), packet.length(), 0) < 0) {
             fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
             exit(EXIT_FAILURE);
+        } else {
+            fprintf(stdout, "SUCCESS sending packet: %s ; buffer length %d\n", packet.buffer(), packet.length());            
+
         }
 	}
 
@@ -117,9 +119,11 @@ namespace mbm {
         if (recv(fd_, buffer, size, 0) < 0) {
             fprintf(stdout, "ERROR reading from socket: %s", strerror(errno));
             exit(EXIT_FAILURE);
+        } else {
+            Packet packet(buffer, size);
+            fprintf(stdout, "SUCCESS receiving packet: %s ; of size %d buffer length %d\n", packet.buffer(), size, packet.length());            
+            return packet;
         }
-        Packet packet(buffer, size);
-        return packet;
     }
 
 
