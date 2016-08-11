@@ -6,7 +6,7 @@ namespace mbm {
 
 class TrafficGenerator {  
   public:
-    TrafficGenerator(const mlab::AcceptedSocket *test_socket,
+    TrafficGenerator(const Socket *test_socket,
                      uint32_t bytes_per_chunk, uint32_t max_pkt);
     bool Send(uint32_t num_chunks, ssize_t& num_bytes);
     bool Send(uint32_t num_chunks);
@@ -17,7 +17,7 @@ class TrafficGenerator {
     const std::vector<uint64_t>& timestamps();
 
   private:
-    const mlab::AcceptedSocket *test_socket_;
+    const Socket *test_socket_;
     uint32_t max_packets_;
     uint32_t bytes_per_chunk_;
     uint64_t total_bytes_sent_;

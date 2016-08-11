@@ -18,7 +18,7 @@ DECLARE_bool(verbose);
 
 namespace mbm {
 
-TrafficGenerator::TrafficGenerator(const mlab::AcceptedSocket *test_socket,
+TrafficGenerator::TrafficGenerator(const Socket *test_socket,
                                    uint32_t bytes_per_chunk, uint32_t max_pkt)
     : test_socket_(test_socket),
       max_packets_(max_pkt),
