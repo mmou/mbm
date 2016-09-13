@@ -1,5 +1,15 @@
 #include "socket.h"
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+
+
 namespace mbm {
 
 	Socket::Socket() {

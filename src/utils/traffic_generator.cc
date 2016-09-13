@@ -1,18 +1,6 @@
-#include "server/traffic_generator.h"
+#if 0
 
-#include <stdlib.h>
-#include <string.h>
-#include <arpa/inet.h>
-
-#include <iostream>
-#include <vector>
-
-#include "mlab/accepted_socket.h"
-#include "mlab/packet.h"
-#include "common/constants.h"
-#include "common/time.h"
-#include "gflags/gflags.h"
-#include "server/web100.h"
+#include "traffic_generator.h"
 
 DECLARE_bool(verbose);
 
@@ -101,3 +89,5 @@ const std::vector<uint64_t>& TrafficGenerator::timestamps() {
 }
 
 } // namespace mbm
+
+#endif

@@ -1,13 +1,17 @@
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "cbr.h"
-#include "utils/config.h"
 
 namespace mbm {
 
-Result RunCBR(Socket* client_mbm_socket,
-              Socket* client_control_socket,
+Result RunCBR(const Socket* client_mbm_socket,
+              const Socket* client_control_socket,
               const Config& mbm_config) {
 
-	uint32_t rate_bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
+    fprintf(stdout, "in runcbr\n");
+
+	uint32_t rate_bps = mbm_config->rate * 1000 / 8; // kilobits per sec --> bytes per sec
 	uint32_t bytes_per_chunk = config.mss;
 
     // calculate how many chunks per second we want to send

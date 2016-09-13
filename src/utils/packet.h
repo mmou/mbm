@@ -1,3 +1,5 @@
+
+
 // adapted from m lab packet.cc ????
 
 // Copyright 2013 M-Lab. All Rights Reserved.
@@ -14,8 +16,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//#ifndef _MLAB_PACKET_H_
-//#define _MLAB_PACKET_H_
+
+#ifndef PACKET_H
+#define PACKET_H
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -57,5 +60,6 @@ class Packet {
 
 }  // namespace mlab
 
-//#endif  // _MLAB_PACKET_H_
+
+#endif  // PACKET_H
 

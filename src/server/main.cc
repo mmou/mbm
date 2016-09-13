@@ -1,3 +1,7 @@
+#include "main.h"
+
+#include "cbr.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -20,7 +24,6 @@
 #include "utils/scoped_ptr.h"
 #include "utils/socket.h"
 
-#include "main.h"
 
 namespace mbm {
 
@@ -37,6 +40,15 @@ namespace mbm {
 
         // server_mbm_socket accept connection from client_mbm_socket
         server_mbm_socket->listenOrDie();
+
+
+        /// server_mbm_socket set max pacing rate (linux only)
+        unsigned int rate = 10;
+        printf("Socket pacing set to %u\n", rate);
+        if (setsockopt(server_mbm_socket->fd(), SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
+            printf("Unable to set socket pacing, using application pacing instead");
+        }
+
 
         // send port to client_control_socket
         Packet port_packet(htons(BASE_PORT));
@@ -56,7 +68,7 @@ namespace mbm {
         fprintf(stdout, "mbm received %s\n", mbm_ready.c_str());
 
 
-        // TODO: RunCBR(client_mbm_socket, client_control_socket, config)
+        RunCBR(client_mbm_socket, client_control_socket.get(), config);
 
 
         //////////////////

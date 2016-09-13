@@ -1,7 +1,7 @@
 /* from mbm */
 
-#ifndef COMMON_RESULT_H_
-#define COMMON_RESULT_H_
+#ifndef RESULT_H
+#define RESULT_H
 
 namespace mbm {
 enum Result {
@@ -15,4 +15,4 @@ enum Result {
 extern const char* kResultStr[NUM_RESULTS];
 }  // namespace mbm
 
-#endif  // COMMON_RESULT_H_
+#endif  // RESULT_H

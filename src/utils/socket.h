@@ -1,13 +1,5 @@
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-
-
+#ifndef SOCKET_H
+#define SOCKET_H
 
 #include "packet.h"
 
@@ -39,3 +31,5 @@ namespace mbm {
 	};
 	
 }
+
+#endif  // SOCKET_H

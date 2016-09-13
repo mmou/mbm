@@ -1,7 +1,7 @@
 /* from mbm code*/
 
-#ifndef SCOPED_PTR_H_
-#define SCOPED_PTR_H_
+#ifndef SCOPED_PTR_H
+#define SCOPED_PTR_H
 
 template<typename T>
 class scoped_ptr {
@@ -18,4 +18,4 @@ class scoped_ptr {
   T* ptr_;
 };
 
-#endif  // SCOPED_PTR_H_
+#endif  // SCOPED_PTR_H

@@ -1,4 +1,10 @@
+#ifndef MODEL_H
+#define MODEL_H
+
+#include "utils/constants.h"
+
 #include <stdint.h>
+#include <algorithm>
 
 namespace mbm {
 namespace model {
@@ -10,3 +16,4 @@ namespace model {
 } // namespace model
 } // namespace mbm
 
+#endif // MODEL_H 

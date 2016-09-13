@@ -1,25 +1,22 @@
-#include <iostream>
-
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-#include <netinet/tcp.h>
-
-#include <arpa/inet.h>
-
-#include <getopt.h>
-
-
-#include <syslog.h>
+#include "main.h"
 
 #include "utils/config.h"
 #include "utils/constants.h"
 #include "utils/scoped_ptr.h"
 #include "utils/socket.h"
 
-#include "main.h"
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <getopt.h>
+
+#include <iostream>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <syslog.h>
+
+
 
 // const char default_filename[] = DEFAULT_FILENAME;
 
@@ -68,6 +65,13 @@ namespace mbm {
         scoped_ptr<Socket> client_mbm_socket(new Socket());
         client_mbm_socket->bindOrDie(DEFAULT_PORT2);
         client_mbm_socket->connectOrDie(all_args.server_listener_address.sin_addr.s_addr, port);
+
+        /// client_mbm_socket set max pacing rate (linux only)
+        unsigned int rate = 10;
+        printf("Socket pacing set to %u\n", rate);
+        if (setsockopt(client_mbm_socket->fd(), SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
+            printf("Unable to set socket pacing, using application pacing instead");
+        }
 
 
         // client_control_socket sends READY

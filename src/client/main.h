@@ -1,3 +1,6 @@
+#ifndef CLIENT_MAIN_H
+#define CLIENT_MAIN_H
+
 /* 
  * adapted from tcpsnoop code by René Pfeiffer <lynx@luchs.at>
  */
@@ -24,3 +27,6 @@
 #define REPLY_MAXLENGTH     2048
 
 #define SYSLOG_IDENTITY     "mbm"
+
+#endif // CLIENT_MAIN_H
+

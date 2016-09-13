@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 #include <algorithm>
-#include "utils/constants.h"
 
 namespace mbm {
 namespace model {
