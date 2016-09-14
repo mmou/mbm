@@ -7,8 +7,8 @@ namespace mbm {
 namespace model {
 
 
-uint64_t target_pipe_size(int rate_kbs, int rtt_ms, int mss_bytes) {
-	// TARGET_WINDOW_SIZE (target_pipe_size) = rate * RTT / (MTU - header_overhead)
+uint64_t target_window_size(int rate_kbs, int rtt_ms, int mss_bytes) {
+	// TARGET_WINDOW_SIZE (target_window_size) = rate * RTT / (MTU - header_overhead)
 
 	// convert kilobits per second to bytes per milisecond
 	uint64_t rate_bytes_ms = rate_kbs / 8;

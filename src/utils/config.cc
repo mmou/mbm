@@ -1,5 +1,10 @@
 #include "utils/config.h"
 
+#include <assert.h>
+#include <stdint.h>
+
+#include <string>
+
 namespace mbm {
 
 	Config::Config() {

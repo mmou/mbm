@@ -3,6 +3,15 @@
 
 #include "packet.h"
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+
 namespace mbm {
 
 	class Socket {
@@ -22,8 +31,8 @@ namespace mbm {
 			void connectOrDie(unsigned long address, unsigned short port);			
 			void connectOrDie(const sockaddr_in &addr);
 
-			void sendOrDie(Packet packet);
-			Packet receiveOrDie(size_t size);
+			bool sendOrDie(Packet packet) const;
+			Packet receiveOrDie(size_t size) const;
 
 		private:
 			int fd_;

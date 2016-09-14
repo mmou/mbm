@@ -1,8 +1,4 @@
-#if 0
-
 #include "traffic_generator.h"
-
-DECLARE_bool(verbose);
 
 namespace mbm {
 
@@ -29,33 +25,33 @@ bool TrafficGenerator::Send(uint32_t num_chunks, ssize_t& num_bytes){
     memcpy(&buffer_[0]+sizeof(packets_sent_), &nonce, sizeof(nonce));
 
 
-    mlab::Packet chunk_packet(&buffer_[0], bytes_per_chunk_);
+    Packet chunk_packet(&buffer_[0], bytes_per_chunk_);
 
-    if (!test_socket_->Send(chunk_packet, &local_num_bytes)) {
+    if (!test_socket_->sendOrDie(chunk_packet)) { // Send(chunk_packet, &local_num_bytes)
       num_bytes = -1;
       return false;
     }
 
     nonce_.push_back(ntohl(nonce));
-    timestamps_.push_back(GetTimeNS());
+    //timestamps_.push_back(GetTimeNS());
 
     num_bytes += chunk_packet.length();
     ++packets_sent_;
 
-    if (FLAGS_verbose) {
-      std::cout << "  s: " << std::hex << ntohl(seq_no) << " " << std::dec
-                << ntohl(seq_no) << "\n";
-      std::cout << "  nonce: " << std::hex << ntohl(nonce) << " " << std::dec
-                << ntohl(nonce) << "\n";
-      if (max_packets_ != 0) {
-        uint32_t percent = static_cast<uint32_t>(
-            static_cast<float>(100 * packets_sent_) / max_packets_);
-        if (percent > last_percent_) {
-          last_percent_ = percent;
-          std::cout << "\r" << percent << "%" << std::flush;
-        }
+
+    std::cout << "  s: " << std::hex << ntohl(seq_no) << " " << std::dec
+              << ntohl(seq_no) << "\n";
+    std::cout << "  nonce: " << std::hex << ntohl(nonce) << " " << std::dec
+              << ntohl(nonce) << "\n";
+    if (max_packets_ != 0) {
+      uint32_t percent = static_cast<uint32_t>(
+          static_cast<float>(100 * packets_sent_) / max_packets_);
+      if (percent > last_percent_) {
+        last_percent_ = percent;
+        std::cout << "\r" << percent << "%" << std::flush;
       }
     }
+
   } // for loop
   total_bytes_sent_ += num_bytes;
   
@@ -89,5 +85,3 @@ const std::vector<uint64_t>& TrafficGenerator::timestamps() {
 }
 
 } // namespace mbm
-
-#endif

@@ -114,17 +114,18 @@ namespace mbm {
     }          
 
 
-	void Socket::sendOrDie(Packet packet) {
+	bool Socket::sendOrDie(Packet packet) const {
         if (send(fd_, packet.buffer(), packet.length(), 0) < 0) {
             fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
             exit(EXIT_FAILURE);
+            return false;
         } else {
             fprintf(stdout, "SUCCESS sending packet: %s ; buffer length %d\n", packet.buffer(), packet.length());            
-
+            return true;
         }
 	}
 
-	Packet Socket::receiveOrDie(size_t size) {
+	Packet Socket::receiveOrDie(size_t size) const {
         char buffer[size];
         if (recv(fd_, buffer, size, 0) < 0) {
             fprintf(stdout, "ERROR reading from socket: %s", strerror(errno));

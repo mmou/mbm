@@ -1,4 +1,6 @@
-#if 0
+#ifndef TRAFFIC_GENERATOR_H
+#define TRAFFIC_GENERATOR_H
+
 
 #include "socket.h"
 
@@ -12,14 +14,10 @@
 #include <iostream>
 #include <vector>
 
-#include "mlab/accepted_socket.h"
-#include "mlab/packet.h"
-#include "common/constants.h"
-#include "common/time.h"
-#include "gflags/gflags.h"
-#include "server/web100.h"
-
-
+#include "socket.h"
+#include "packet.h"
+#include "constants.h"
+#include "time.h"
 
 namespace mbm {
 
@@ -50,4 +48,4 @@ class TrafficGenerator {
 
 } // namespace mbm
 
-#endif
+#endif  // TRAFFIC_GENERATOR_H

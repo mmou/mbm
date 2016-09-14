@@ -47,6 +47,8 @@ namespace mbm {
         printf("Socket pacing set to %u\n", rate);
         if (setsockopt(server_mbm_socket->fd(), SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
             printf("Unable to set socket pacing, using application pacing instead");
+        } else {
+            printf("attempt successful, rate is %u\n", rate);
         }
 
 
