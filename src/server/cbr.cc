@@ -1,7 +1,9 @@
+#include "cbr.h"
+
+#include "model.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "cbr.h"
 
 #include "utils/config.h"
 #include "utils/constants.h"
@@ -15,7 +17,7 @@ Result RunCBR(const Socket* client_mbm_socket,
 
     fprintf(stdout, "in runcbr\n");
 
-
+/*
 	uint32_t bytes_per_chunk = mbm_config.mss;
 
 	uint32_t rate_bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
@@ -31,8 +33,8 @@ Result RunCBR(const Socket* client_mbm_socket,
     } else {
 		printf("succeesss"); 
     }
+*/
 
-/*
 	uint32_t rate_bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
 	uint32_t bytes_per_chunk = mbm_config.mss;
 
@@ -43,15 +45,15 @@ Result RunCBR(const Socket* client_mbm_socket,
     uint64_t time_per_chunk_ns = NS_PER_SEC / chunks_per_sec;
   
     // calculate how many sec per chunk
-    double time_per_chunk_sec = 1.0 / chunks_per_sec;
+    double time_per_chunk_sec = 1.0 / chunks_per_sec; //****!!!
   
     // calculate the burst size for sleep time to be greater than 500us
     // if the burst size from config is greater, use the config burst size
     uint32_t burst_size_pkt = std::max(1000000 / time_per_chunk_ns, static_cast<uint64_t>(mbm_config.burst_size));
 
 	// calculate the maximum test time
-	uint32_t max_test_time_sec = std::min(TEST_BASE_SEC + TEST_INCR_SEC_PER_MB * mbm_config.rate / 1000, static_cast<unsigned>(TEST_MAX_SEC));
-	uint32_t max_cwnd_time_sec = std::min(CWND_BASE_SEC + CWND_INCR_SEC_PER_MB * mbm_config.rate / 1000, static_cast<unsigned>(CWND_MAX_SEC));
+	uint32_t max_test_time_sec = std::min(TEST_BASE_SEC + TEST_INCR_SEC_PER_MB * mbm_config.rate / 1000, static_cast<int>(TEST_MAX_SEC));
+	uint32_t max_cwnd_time_sec = std::min(CWND_BASE_SEC + CWND_INCR_SEC_PER_MB * mbm_config.rate / 1000, static_cast<int>(CWND_MAX_SEC));
 	uint32_t max_test_pkt = max_test_time_sec * chunks_per_sec;
 	uint32_t max_cwnd_pkt = max_cwnd_time_sec * chunks_per_sec;
 
@@ -59,19 +61,7 @@ Result RunCBR(const Socket* client_mbm_socket,
 	uint64_t target_window_size = model::target_window_size(mbm_config.rate, mbm_config.rtt, mbm_config.mss);
 	uint64_t target_run_length = model::target_run_length(mbm_config.rate, mbm_config.rtt, mbm_config.mss);
 	uint64_t target_window_size_bytes = target_window_size * mbm_config.mss;
-	uint64_t rtt_ns = mbm_config.rtt * 1000 * 1000;
-
-
-	// Sending chunk length and traffic volume to client
-	Packet bytes_per_chunk_packet(htonl(bytes_per_chunk));
-	client_control_socket->sendOrDie(bytes_per_chunk_packet);
-
-	Packet max_pkt_packet(htonl(max_test_pkt + max_cwnd_pkt));
-	client_control_socket->sendOrDie(max_pkt_packet);
-
-	Packet max_time_packet(htonl(max_test_pkt + max_cwnd_pkt));
-	client_control_socket->sendOrDie(max_time_packet);
-
+	uint64_t rtt_ns = mbm_config.rtt * 1000;
 
 	// traffic pattern log
 	//	std::cout << "  tcp_mss: " << bytes_per_chunk << "\n"; // tcp_mss
@@ -79,10 +69,10 @@ Result RunCBR(const Socket* client_mbm_socket,
 	fprintf(stdout, "bytes_per_chunk: %d\n", bytes_per_chunk);
 	fprintf(stdout, "chunks_per_sec: %d\n", chunks_per_sec);
 	fprintf(stdout, "time_per_chunk_ns: %d\n", time_per_chunk_ns);
-	fprintf(stdout, "time_per_chunk_sec: %d\n", time_per_chunk_sec);
+	fprintf(stdout, "time_per_chunk_sec: %8.6f\n", time_per_chunk_sec);
 	fprintf(stdout, "burst_size_pkt: %d\n", burst_size_pkt);
-	fprintf(stdout, "target_pipe_size_pkt: %d\n", target_window_size);
-	fprintf(stdout, "target_run_length_pkt: %d\n", target_run_length);
+	fprintf(stdout, "target_window_size: %d\n", target_window_size);
+	fprintf(stdout, "target_run_length: %d\n", target_run_length);
 
 
 	uint32_t cwnd_bytes_total = 0;
@@ -92,17 +82,24 @@ Result RunCBR(const Socket* client_mbm_socket,
 	fprintf(stdout, "sending at most %d test packets (%d bytes)\n", max_test_pkt, test_bytes_total);
 
 	// Maximum time for the traffic
-	fprintf(stdout, "cwnd traffic should take at most %d seconds\n", max_cwnd_time_sec;
-	fprintf(stdout, "test traffic should take at most %d seconds\n", max_test_time_sec;
+	fprintf(stdout, "cwnd traffic should take at most %d seconds\n", max_cwnd_time_sec);
+	fprintf(stdout, "test traffic should take at most %d seconds\n", max_test_time_sec);
+
+    //fprintf(stdout, "sending bytes_per_chunk: %d\n", bytes_per_chunk);
+	// Sending chunk length and traffic volume to client
+	Packet bytes_per_chunk_packet(htonl(bytes_per_chunk));
+	client_control_socket->sendOrDie(bytes_per_chunk_packet);
+
+    //fprintf(stdout, "sending max_num_pkt: %d\n", max_test_pkt + max_cwnd_pkt);
+	Packet max_num_pkt_packet(htonl(max_test_pkt + max_cwnd_pkt));
+	client_control_socket->sendOrDie(max_num_pkt_packet);
+
+    //fprintf(stdout, "sending max_time: %d\n", max_test_time_sec + max_cwnd_time_sec);
+	Packet max_time_packet(htonl(max_test_time_sec + max_cwnd_time_sec));
+	client_control_socket->sendOrDie(max_time_packet);
+
+
 /*
-
-
-send to client:
-	bytes_per_chunk
-	max_test_pkt, max_cwnd_pkt
-	max_test_time_sec, max_cwnd_time_sec
-
-
 growing window size phase
 	web100::Connection growth_connection through test_socket/mbm_socket
 	TrafficGenerator growth_generator

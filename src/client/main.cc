@@ -85,6 +85,18 @@ namespace mbm {
 
         // test starts now
 
+        const uint32_t bytes_per_chunk = ntohl(client_control_socket->receiveOrDie(sizeof(bytes_per_chunk)).as<uint32_t>());
+        const uint32_t max_num_pkt = ntohl(client_control_socket->receiveOrDie(sizeof(max_num_pkt)).as<uint32_t>());
+        const uint32_t max_time = ntohl(client_control_socket->receiveOrDie(sizeof(max_time)).as<uint32_t>());
+        // error handle these?
+
+        //fprintf(stdout, "receiving bytes_per_chunk: %d\n", bytes_per_chunk);
+        //fprintf(stdout, "receiving max_num_pkt: %d\n", max_num_pkt);
+        //fprintf(stdout, "receiving max_time: %d\n", max_time);
+
+        fprintf(stdout, "receiving at most %d packets (%d bytes)\n", max_num_pkt, max_num_pkt*bytes_per_chunk);
+        fprintf(stdout, "the process takes at most %d seconds\n", max_time);
+
         // ...
 
 

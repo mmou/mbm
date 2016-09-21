@@ -38,7 +38,7 @@ namespace mbm {
 
 	void Socket::bindOrDie(const sockaddr_in& addr) {
         if (bind(fd_, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-            fprintf(stdout, "ERROR binding socket: %s", strerror(errno));
+            fprintf(stdout, "ERROR binding socket on address %d, port %d: %s", addr.sin_addr.s_addr, ntohs(addr.sin_port), strerror(errno));
             exit(EXIT_FAILURE);
         } else {
 	        fprintf(stdout, "SUCCESS binding socket on address %d, port %d\n", addr.sin_addr.s_addr, ntohs(addr.sin_port));
