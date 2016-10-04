@@ -15,40 +15,16 @@ Result RunCBR(const Socket* client_mbm_socket,
               const Socket* client_control_socket,
               const Config& mbm_config) {
 
-    fprintf(stdout, "in runcbr\n");
-
-/*
-	uint32_t bytes_per_chunk = mbm_config.mss;
-
-	uint32_t rate_bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
-	uint32_t chunks_per_sec = rate_bps / bytes_per_chunk;	
-	uint32_t max_test_time_sec = static_cast<unsigned>(TEST_MAX_SEC);	
-	uint32_t max_test_pkt = max_test_time_sec * chunks_per_sec;
-    TrafficGenerator generator(client_mbm_socket, bytes_per_chunk, max_test_pkt);
-
-    uint32_t burst_size_pkt = mbm_config.burst_size;
-
-    if (!generator.Send(burst_size_pkt)) {
-        printf("fail to send");      
-    } else {
-		printf("succeesss"); 
-    }
-*/
-
 	uint32_t rate_bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
 	uint32_t bytes_per_chunk = mbm_config.mss;
 
-    // calculate how many chunks per second we want to send
-	uint32_t chunks_per_sec = rate_bps / bytes_per_chunk;
-
-    // calculate how many ns per chunk
-    uint64_t time_per_chunk_ns = NS_PER_SEC / chunks_per_sec;
+	uint32_t chunks_per_sec = rate_bps / bytes_per_chunk;	// calculate how many chunks per second we want to send
+    uint64_t time_per_chunk_ns = NS_PER_SEC / chunks_per_sec;	// calculate how many ns per chunk	
+    double time_per_chunk_sec = 1.0 / chunks_per_sec;	// calculate how many sec per chunk
   
-    // calculate how many sec per chunk
-    double time_per_chunk_sec = 1.0 / chunks_per_sec; //****!!!
-  
-    // calculate the burst size for sleep time to be greater than 500us
-    // if the burst size from config is greater, use the config burst size
+    // calculate the burst size for sleep time to be greater than 500us (because we assume RTT > 1 ms???)
+    // 1000000 ns / time_per_chunk_ns = number of packets in 1 ms.
+    // use the larger burst size
     uint32_t burst_size_pkt = std::max(1000000 / time_per_chunk_ns, static_cast<uint64_t>(mbm_config.burst_size));
 
 	// calculate the maximum test time
@@ -64,7 +40,6 @@ Result RunCBR(const Socket* client_mbm_socket,
 	uint64_t rtt_ns = mbm_config.rtt * 1000;
 
 	// traffic pattern log
-	//	std::cout << "  tcp_mss: " << bytes_per_chunk << "\n"; // tcp_mss
 	fprintf(stdout, "rate_bps: %d\n", rate_bps);
 	fprintf(stdout, "bytes_per_chunk: %d\n", bytes_per_chunk);
 	fprintf(stdout, "chunks_per_sec: %d\n", chunks_per_sec);
@@ -74,9 +49,7 @@ Result RunCBR(const Socket* client_mbm_socket,
 	fprintf(stdout, "target_window_size: %d\n", target_window_size);
 	fprintf(stdout, "target_run_length: %d\n", target_run_length);
 
-
-	uint32_t cwnd_bytes_total = 0;
- 	cwnd_bytes_total = bytes_per_chunk * max_cwnd_pkt;
+ 	uint32_t cwnd_bytes_total = bytes_per_chunk * max_cwnd_pkt;
  	fprintf(stdout, "sending at most %d packets (%d bytes) to grow cwnd\n", max_cwnd_pkt, cwnd_bytes_total);
 	uint32_t test_bytes_total = bytes_per_chunk * max_test_pkt;
 	fprintf(stdout, "sending at most %d test packets (%d bytes)\n", max_test_pkt, test_bytes_total);
@@ -98,6 +71,11 @@ Result RunCBR(const Socket* client_mbm_socket,
 	Packet max_time_packet(htonl(max_test_time_sec + max_cwnd_time_sec));
 	client_control_socket->sendOrDie(max_time_packet);
 
+    if (!generator.Send(burst_size_pkt)) {
+        printf("fail to send");      
+    } else {
+		printf("succeesss"); 
+    }
 
 /*
 growing window size phase
@@ -143,49 +121,42 @@ log
 */
 
 
+TrafficGenerator growth_generator(test_socket, bytes_per_chunk, max_cwnd_pkt);
+uint64_t growth_start_time = GetTimeNS();
+if (test_socket->type() == SOCKETTYPE_TCP) {
+  web100::Connection growth_connection(test_socket, agent.get());
+  growth_connection.Start();
+  while (growth_generator.packets_sent() < max_cwnd_pkt) {
+    growth_connection.Stop();
+    if (growth_connection.CurCwnd() >= target_pipe_size_bytes) {
+      std::cout << "cwnd reached" << std::endl;
+      break;
+    }
+    if (!growth_generator.Send(target_pipe_size)) {
+      return RESULT_ERROR;
+    }
+    if (GetTimeNS() > growth_start_time
+        + static_cast<uint64_t>(max_cwnd_time_sec) * NS_PER_SEC) {
+      std::cout << "max time reached" << std::endl;
+      break;
+    }
+    NanoSleepX( rtt_ns / NS_PER_SEC, rtt_ns % NS_PER_SEC);
+  }
+
+  std::cout << "loss during growth: "
+            << growth_connection.PacketRetransCount() << std::endl;
+  std::cout << "growing phase done" << std::endl;
+  // uint32_t growth_rtt = growth_connection.SampleRTT();
+  while (growth_connection.SndNxt() - growth_connection.SndUna()
+          >= std::max(target_pipe_size_bytes / 2, static_cast<uint64_t>(1))) {
+    growth_connection.Stop();
+    // NanoSleepX(growth_rtt / MS_PER_SEC, (growth_rtt % MS_PER_SEC) * 1000000);
+  }
+  std::cout << "done draining" << std::endl;
+}
 
 
 
-//  // Initialize the web100 agent
-//  #ifdef USE_WEB100
-//  web100::Agent agent;
-//  #endif // USE_WEB100
-//
-//  #ifdef USE_WEB100
-//  TrafficGenerator growth_generator(test_socket, bytes_per_chunk, max_cwnd_pkt);
-//  uint64_t growth_start_time = GetTimeNS();
-//  if (test_socket->type() == SOCKETTYPE_TCP) {
-//    web100::Connection growth_connection(test_socket, agent.get());
-//    growth_connection.Start();
-//    while (growth_generator.packets_sent() < max_cwnd_pkt) {
-//      growth_connection.Stop();
-//      if (growth_connection.CurCwnd() >= target_pipe_size_bytes) {
-//        std::cout << "cwnd reached" << std::endl;
-//        break;
-//      }
-//      if (!growth_generator.Send(target_pipe_size)) {
-//        return RESULT_ERROR;
-//      }
-//      if (GetTimeNS() > growth_start_time
-//          + static_cast<uint64_t>(max_cwnd_time_sec) * NS_PER_SEC) {
-//        std::cout << "max time reached" << std::endl;
-//        break;
-//      }
-//      NanoSleepX( rtt_ns / NS_PER_SEC, rtt_ns % NS_PER_SEC);
-//    }
-//    std::cout << "loss during growth: "
-//              << growth_connection.PacketRetransCount() << std::endl;
-//    std::cout << "growing phase done" << std::endl;
-//
-//    // uint32_t growth_rtt = growth_connection.SampleRTT();
-//    while (growth_connection.SndNxt() - growth_connection.SndUna()
-//            >= std::max(target_pipe_size_bytes / 2, static_cast<uint64_t>(1))) {
-//      growth_connection.Stop();
-//      // NanoSleepX(growth_rtt / MS_PER_SEC, (growth_rtt % MS_PER_SEC) * 1000000);
-//    }
-//    std::cout << "done draining" << std::endl;
-//  }
-//  #endif
 //
 //  // Start the test
 //  StatTest tester(target_run_length);

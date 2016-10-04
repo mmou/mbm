@@ -99,22 +99,6 @@ namespace mbm {
 
         // ...
 
-
-//        /* Send message to the server */
-//        if (send(client_control_socket, "HELLO SERVER!", 13, 0) < 0) {
-//            fprintf(stdout, "ERROR writing to socket: %s", strerror(errno));
-//            exit(EXIT_FAILURE);
-//        }
-//
-//        /* Now read server response */
-//        bzero(buffer,256);
-//        if (recv(client_control_socket, buffer, 255, 0) < 0) {
-//            fprintf(stdout, "ERROR reading from socket: %s", strerror(errno));
-//            exit(EXIT_FAILURE);
-//        }
-//        
-//        printf("%s\n",buffer);
-
     }
 }	// namespace mbm
 
