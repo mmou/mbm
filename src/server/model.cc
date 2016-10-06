@@ -7,7 +7,7 @@ namespace mbm {
 namespace model {
 
 
-uint64_t target_window_size(int rate_kbs, int rtt_ms, int mss_bytes) {
+uint64_t target_window_size(uint32_t rate_kbs, uint32_t rtt_ms, uint32_t mss_bytes) {
 	// TARGET_WINDOW_SIZE (target_window_size) = rate * RTT / (MTU - header_overhead)
 
 	// convert kilobits per second to bytes per milisecond
@@ -15,7 +15,7 @@ uint64_t target_window_size(int rate_kbs, int rtt_ms, int mss_bytes) {
 	return std::max(rate_bytes_ms * rtt_ms / mss_bytes, static_cast<uint64_t>(MIN_TARGET_WINDOW_SIZE));
 }
 
-uint64_t target_run_length(int rate_kbs, int rtt_ms, int mss_bytes) {
+uint64_t target_run_length(uint32_t rate_kbs, uint32_t rtt_ms, uint32_t mss_bytes) {
 	// TARGET_RUN_LENGTH (target_run_length) = 3 *(TARGET_WINDOW_SIZE)^2
 	// estimate of min required # of unmarked packets that must be delivered btwn losses/ECN marks
 

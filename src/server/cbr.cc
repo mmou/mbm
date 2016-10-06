@@ -4,6 +4,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+
+#include <netinet/tcp.h>
 
 #include "utils/config.h"
 #include "utils/constants.h"
@@ -11,14 +14,39 @@
 
 namespace mbm {
 
+/* Decode TCP options to string description. Please note that using strcat()
+ * is highly dangerous and make sure you don't do it and never overwrite
+ * your buffers! We use it here because we concatenate strings under our
+ * control.
+ */
+void decode_tcp_options(char *options_text, u_int8_t tcp_options) {
+    if ( (tcp_options & TCPI_OPT_TIMESTAMPS) ) {
+        strcat(options_text, "Timestamps ");
+    }
+    if ( (tcp_options & TCPI_OPT_SACK) ) {
+        strcat(options_text, "SACK ");
+    }
+    if ( (tcp_options & TCPI_OPT_WSCALE) ) {
+        strcat(options_text, "Window Scaling ");
+    }
+    if ( (tcp_options & TCPI_OPT_ECN) ) {
+        strcat(options_text, "ECN ");
+    }
+    return;
+}
+
+
+
 Result RunCBR(const Socket* client_mbm_socket,
               const Socket* client_control_socket,
               const Config& mbm_config) {
 
+	fprintf(stdout, "IN CBR TEST: %u", mbm_config.rate);
+
 	uint32_t rate_bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
 	uint32_t bytes_per_chunk = mbm_config.mss;
 
-	uint32_t chunks_per_sec = rate_bps / bytes_per_chunk;	// calculate how many chunks per second we want to send
+	uint32_t chunks_per_sec = std::max(static_cast<int>(rate_bps / bytes_per_chunk), 1);	// calculate how many chunks per second we want to send
     uint64_t time_per_chunk_ns = NS_PER_SEC / chunks_per_sec;	// calculate how many ns per chunk	
     double time_per_chunk_sec = 1.0 / chunks_per_sec;	// calculate how many sec per chunk
   
@@ -28,8 +56,8 @@ Result RunCBR(const Socket* client_mbm_socket,
     uint32_t burst_size_pkt = std::max(1000000 / time_per_chunk_ns, static_cast<uint64_t>(mbm_config.burst_size));
 
 	// calculate the maximum test time
-	uint32_t max_test_time_sec = std::min(TEST_BASE_SEC + TEST_INCR_SEC_PER_MB * mbm_config.rate / 1000, static_cast<int>(TEST_MAX_SEC));
-	uint32_t max_cwnd_time_sec = std::min(CWND_BASE_SEC + CWND_INCR_SEC_PER_MB * mbm_config.rate / 1000, static_cast<int>(CWND_MAX_SEC));
+	uint32_t max_test_time_sec = std::min(static_cast<int>(TEST_BASE_SEC + TEST_INCR_SEC_PER_MB * mbm_config.rate / 1000), static_cast<int>(TEST_MAX_SEC));
+	uint32_t max_cwnd_time_sec = std::min(static_cast<int>(CWND_BASE_SEC + CWND_INCR_SEC_PER_MB * mbm_config.rate / 1000), static_cast<int>(CWND_MAX_SEC));
 	uint32_t max_test_pkt = max_test_time_sec * chunks_per_sec;
 	uint32_t max_cwnd_pkt = max_cwnd_time_sec * chunks_per_sec;
 
@@ -41,13 +69,13 @@ Result RunCBR(const Socket* client_mbm_socket,
 
 	// traffic pattern log
 	fprintf(stdout, "rate_bps: %d\n", rate_bps);
-	fprintf(stdout, "bytes_per_chunk: %d\n", bytes_per_chunk);
-	fprintf(stdout, "chunks_per_sec: %d\n", chunks_per_sec);
-	fprintf(stdout, "time_per_chunk_ns: %d\n", time_per_chunk_ns);
+	fprintf(stdout, "bytes_per_chunk: %8.6f\n", bytes_per_chunk);
+	fprintf(stdout, "chunks_per_sec: %8.6f\n", chunks_per_sec);
+	fprintf(stdout, "time_per_chunk_ns: %8.6f\n", time_per_chunk_ns);
 	fprintf(stdout, "time_per_chunk_sec: %8.6f\n", time_per_chunk_sec);
 	fprintf(stdout, "burst_size_pkt: %d\n", burst_size_pkt);
-	fprintf(stdout, "target_window_size: %d\n", target_window_size);
-	fprintf(stdout, "target_run_length: %d\n", target_run_length);
+	fprintf(stdout, "target_window_size: %8.6f\n", target_window_size);
+	fprintf(stdout, "target_run_length: %8.6f\n", target_run_length);
 
  	uint32_t cwnd_bytes_total = bytes_per_chunk * max_cwnd_pkt;
  	fprintf(stdout, "sending at most %d packets (%d bytes) to grow cwnd\n", max_cwnd_pkt, cwnd_bytes_total);
@@ -71,11 +99,106 @@ Result RunCBR(const Socket* client_mbm_socket,
 	Packet max_time_packet(htonl(max_test_time_sec + max_cwnd_time_sec));
 	client_control_socket->sendOrDie(max_time_packet);
 
-    if (!generator.Send(burst_size_pkt)) {
-        printf("fail to send");      
-    } else {
-		printf("succeesss"); 
-    }
+
+
+	TrafficGenerator generator(client_mbm_socket, bytes_per_chunk, max_test_pkt);
+   struct timespec req, rem;
+   req.tv_sec = 0;
+   req.tv_nsec = 500000000L;;
+
+	while (generator.packets_sent() < max_test_pkt*10) {
+	    if (!generator.Send(2)) { // burst_size_pkt
+	        printf("fail to send");      
+	    } else {
+			printf("succeesss"); 
+	    }
+
+		// sample the data once a second
+		if (generator.packets_sent() % (chunks_per_sec*3) == 0) {
+
+            /* Fill tcp_info structure with data to get the TCP options and the client's
+             * name.
+             */
+			struct tcp_info tcp_info;			
+            int tcp_info_length = sizeof(tcp_info);
+			static char tcp_options_text[MAX_TCPOPT];
+			unsigned short opt_debug = 0;
+
+            if ( getsockopt( client_mbm_socket->fd(), SOL_IP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
+                memset((void *)tcp_options_text, 0, MAX_TCPOPT);
+                decode_tcp_options(tcp_options_text,tcp_info.tcpi_options);
+
+				fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
+
+				fprintf(stdout, "tcpi_snd_mss: %u\n", tcp_info.tcpi_snd_mss);
+				fprintf(stdout, "tcpi_rcv_mss: %u\n", tcp_info.tcpi_rcv_mss);
+
+				fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
+				fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
+				fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
+
+				fprintf(stdout, "\n~~~~times~~~~\n");
+				fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
+				fprintf(stdout, "tcpi_last_ack_sent: %u\n", tcp_info.tcpi_last_ack_sent);
+				fprintf(stdout, "tcpi_last_data_recv: %u\n", tcp_info.tcpi_last_data_recv);
+				fprintf(stdout, "tcpi_last_ack_recv: %u\n", tcp_info.tcpi_last_ack_recv);
+
+				fprintf(stdout, "\n~~~~metrics~~~~\n");
+				fprintf(stdout, "tcpi_pmtu: %u\n", tcp_info.tcpi_pmtu);
+				fprintf(stdout, "tcpi_rcv_ssthresh: %u\n", tcp_info.tcpi_rcv_ssthresh);
+				fprintf(stdout, "tcpi_rtt: %u\n", tcp_info.tcpi_rtt);
+				fprintf(stdout, "tcpi_rttvar: %u\n", tcp_info.tcpi_rttvar);
+				fprintf(stdout, "tcpi_snd_ssthresh: %u\n", tcp_info.tcpi_snd_ssthresh);
+				fprintf(stdout, "tcpi_snd_cwnd: %u\n", tcp_info.tcpi_snd_cwnd);
+				fprintf(stdout, "tcpi_advmss: %u\n", tcp_info.tcpi_advmss);
+				fprintf(stdout, "tcpi_reordering: %u\n", tcp_info.tcpi_reordering);
+
+                /* Write some statistics and start of connection to log file. */
+                //fprintf(stdout,"# TCP INFO STATS (AdvMSS %u, PMTU %u, options (%0.X): %s)\n",
+                //        tcp_info.tcpi_advmss,
+                //        tcp_info.tcpi_pmtu,
+                //        tcp_info.tcpi_options,
+                //        tcp_options_text
+                //       );
+            }
+
+            nanosleep(&req , &rem);
+			//// statistical test
+			//test_connection.Stop();
+			//uint32_t loss = test_connection.PacketRetransCount();
+			//uint32_t n = generator.packets_sent();
+			//test_result = tester.test_result(n, loss);
+			//if (test_result == RESULT_PASS) {
+			//  std::cout << "passed SPRT" << std::endl;
+			//  result_set = true;
+			//  break;
+			//} else if (test_result == RESULT_FAIL) {
+			//  std::cout << "failed SPRT" << std::endl;
+			//  result_set = true;
+			//  break;
+			//}
+		}
+	    
+	    //// figure out the start time for the next chunk
+	    //uint64_t next_start = outer_start_time +
+	    //                      generator.packets_sent() * time_per_chunk_ns;
+	    //uint64_t curr_time = GetTimeNS();
+	    //int32_t left_over_ns = next_start - curr_time;
+	    //if (left_over_ns > 0) {
+	    //  // If we have time left over, sleep the remainder.
+	    //  NanoSleepX(left_over_ns / NS_PER_SEC, left_over_ns % NS_PER_SEC);
+	    //} else {
+	    //  missed_total += abs(left_over_ns);
+	    //  missed_sleep++;
+	    //  missed_max = std::max(missed_max, static_cast<uint64_t>(abs(left_over_ns)));
+	    //  if (missed_total > (curr_time - outer_start_time) / 2) {
+	    //    // Inconclusive because the test failed to generate the traffic pattern
+	    //    test_result = RESULT_INCONCLUSIVE;
+	    //    result_set = true;
+	    //    break;
+	    //  }
+	    //}	    
+	}
 
 /*
 growing window size phase
@@ -120,6 +243,7 @@ log
 
 */
 
+/*
 
 TrafficGenerator growth_generator(test_socket, bytes_per_chunk, max_cwnd_pkt);
 uint64_t growth_start_time = GetTimeNS();
@@ -154,7 +278,7 @@ if (test_socket->type() == SOCKETTYPE_TCP) {
   }
   std::cout << "done draining" << std::endl;
 }
-
+*/
 
 
 //

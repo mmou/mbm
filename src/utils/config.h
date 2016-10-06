@@ -9,12 +9,12 @@ namespace mbm {
 	class Config {
 	public:
 		Config();
-		Config(int rate, int rtt, int mss, int burst_size);
+		Config(uint32_t rate, uint32_t rtt, uint32_t mss, uint32_t burst_size);
 
-		int rate;
-		int rtt;
-		int mss;
-		int burst_size;
+		uint32_t rate;
+		uint32_t rtt;
+		uint32_t mss;
+		uint32_t burst_size;
 	  };
 
 }  // namespace mbm

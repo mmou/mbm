@@ -18,7 +18,7 @@ namespace mbm {
 		burst_size = 1;		
 	}
 
-	Config::Config(int rate, int rtt, int mss, int burst_size) {
+	Config::Config(uint32_t rate, uint32_t rtt, uint32_t mss, uint32_t burst_size) {
 		rate = rate;
 		rtt = rtt;
 		mss = mss;

@@ -6,6 +6,9 @@
 #include "utils/config.h"
 #include "utils/result.h"
 
+
+#define MAX_TCPOPT          256
+
 namespace mbm {
 class Socket;
 
