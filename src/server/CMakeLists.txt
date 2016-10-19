@@ -1,5 +1,8 @@
 cmake_minimum_required (VERSION 2.6)
 
+set(CMAKE_BUILD_TYPE Debug)
+
+
 project(mbm_server)
 
 set(PROJECT_ROOT_DIR ${PROJECT_SOURCE_DIR}/../..)

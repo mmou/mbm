@@ -97,7 +97,51 @@ namespace mbm {
         fprintf(stdout, "receiving at most %d packets (%d bytes)\n", max_num_pkt, max_num_pkt*bytes_per_chunk);
         fprintf(stdout, "the process takes at most %d seconds\n", max_time);
 
-        // ...
+        while (true) {
+            client_mbm_socket->receiveOrDie(bytes_per_chunk);
+
+            struct tcp_info tcp_info;           
+            int tcp_info_length = sizeof(tcp_info);
+            static char tcp_options_text[MAX_TCPOPT];
+            unsigned short opt_debug = 0;
+
+            if ( getsockopt( client_mbm_socket->fd(), SOL_IP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
+                memset((void *)tcp_options_text, 0, MAX_TCPOPT);
+
+                fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
+
+                fprintf(stdout, "tcpi_snd_mss: %u\n", tcp_info.tcpi_snd_mss);
+                fprintf(stdout, "tcpi_rcv_mss: %u\n", tcp_info.tcpi_rcv_mss);
+
+                fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
+                fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
+                fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
+
+                fprintf(stdout, "\n~~~~times~~~~\n");
+                fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
+                fprintf(stdout, "tcpi_last_ack_sent: %u\n", tcp_info.tcpi_last_ack_sent);
+                fprintf(stdout, "tcpi_last_data_recv: %u\n", tcp_info.tcpi_last_data_recv);
+                fprintf(stdout, "tcpi_last_ack_recv: %u\n", tcp_info.tcpi_last_ack_recv);
+
+                fprintf(stdout, "\n~~~~metrics~~~~\n");
+                fprintf(stdout, "tcpi_pmtu: %u\n", tcp_info.tcpi_pmtu);
+                fprintf(stdout, "tcpi_rcv_ssthresh: %u\n", tcp_info.tcpi_rcv_ssthresh);
+                fprintf(stdout, "tcpi_rtt: %u\n", tcp_info.tcpi_rtt);
+                fprintf(stdout, "tcpi_rttvar: %u\n", tcp_info.tcpi_rttvar);
+                fprintf(stdout, "tcpi_snd_ssthresh: %u\n", tcp_info.tcpi_snd_ssthresh);
+                fprintf(stdout, "tcpi_snd_cwnd: %u\n", tcp_info.tcpi_snd_cwnd);
+                fprintf(stdout, "tcpi_advmss: %u\n", tcp_info.tcpi_advmss);
+                fprintf(stdout, "tcpi_reordering: %u\n", tcp_info.tcpi_reordering);
+
+                /* Write some statistics and start of connection to log file. */
+                //fprintf(stdout,"# TCP INFO STATS (AdvMSS %u, PMTU %u, options (%0.X): %s)\n",
+                //        tcp_info.tcpi_advmss,
+                //        tcp_info.tcpi_pmtu,
+                //        tcp_info.tcpi_options,
+                //        tcp_options_text
+                //       );
+            }
+        }
 
     }
 }	// namespace mbm
@@ -115,8 +159,8 @@ mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
         {"server_port", required_argument, 0, 'p'},        
         {"rate", required_argument, 0, 'r'},
         {"rtt", required_argument, 0, 't'},
-        {"mss", required_argument, 0, 'd'},
-        {"burst_size", required_argument, 0, 'c'},
+        {"mss", required_argument, 0, 'm'},
+        {"burst_size", required_argument, 0, 'b'},
         {NULL, 0, NULL, 0}
     };
 

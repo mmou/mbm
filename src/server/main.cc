@@ -24,11 +24,13 @@
 #include "utils/scoped_ptr.h"
 #include "utils/socket.h"
 
+#include <csignal>
 
 namespace mbm {
 
     void* ServerThread(void* client_control_socket_ptr) {
-        scoped_ptr<Socket> client_control_socket(reinterpret_cast<Socket*>(client_control_socket_ptr));
+        const Socket* client_control_socket = static_cast<const Socket*>(client_control_socket_ptr);
+        //const scoped_ptr<Socket> client_control_socket(reinterpret_cast<Socket*>(client_control_socket_ptr));
         fprintf(stdout, "SERVER THREAD: accepted %d\n", client_control_socket->fd());
 
         // receive config. deserialize it.
@@ -58,7 +60,7 @@ namespace mbm {
         fprintf(stdout, "THIS IS PORT: %d\n", BASE_PORT);
 
         // server_mbm_socket accept connection from client_mbm_socket
-        mbm::Socket* client_mbm_socket(server_mbm_socket->acceptOrDie());
+        const mbm::Socket* client_mbm_socket(server_mbm_socket->acceptOrDie());
 
         // client_control_socket receive READY
         // ssize_t num_bytes;
@@ -69,9 +71,8 @@ namespace mbm {
         std::string mbm_ready = (client_mbm_socket->receiveOrDie(strlen(READY))).str();
         fprintf(stdout, "mbm received %s\n", mbm_ready.c_str());
 
-
-        RunCBR(client_mbm_socket, client_control_socket.get(), config);
-
+        std::raise(SIGINT);
+        RunCBR(client_mbm_socket, client_control_socket, config);
 
         //////////////////
 
@@ -108,13 +109,13 @@ int main( int argc, char *argv[] ) {
         // TODO: be able to accept multiple connections, by using select() 
 
         const mbm::Socket* client_control_socket(server_listener_socket->acceptOrDie());
-
+        
         // Each server socket runs on a different thread.
         pthread_t thread;
         int fd = client_control_socket->fd();
         fprintf(stdout, "main THREAD: fd %d\n", fd);
 
-        int rc = pthread_create(&thread, NULL, mbm::ServerThread, (void*)client_control_socket);
+        int rc = pthread_create(&thread, NULL, mbm::ServerThread, (void *) client_control_socket);
         if (rc != 0) {
             fprintf(stdout, "ERROR creating thread" ); 
             return 1;
