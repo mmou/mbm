@@ -71,7 +71,7 @@ namespace mbm {
         std::string mbm_ready = (client_mbm_socket->receiveOrDie(strlen(READY))).str();
         fprintf(stdout, "mbm received %s\n", mbm_ready.c_str());
 
-        std::raise(SIGINT);
+        //std::raise(SIGINT);
         RunCBR(client_mbm_socket, client_control_socket, config);
 
         //////////////////
