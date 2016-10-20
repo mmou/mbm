@@ -1,6 +1,8 @@
 #include "main.h"
 
 #include "cbr.h"
+#include "model.h"
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,10 +47,11 @@ namespace mbm {
 
 
         /// server_mbm_socket set max pacing rate (linux only)
-        unsigned int rate = 10;
+        //int64_t target_window_size = model::target_window_size(config.rate, config.rtt, config.mss); // todo: probably shouldn't call this here
+        unsigned int rate = 5; //target_window_size;
         printf("Socket pacing set to %u\n", rate);
-        if (setsockopt(server_mbm_socket->fd(), SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
-            printf("Unable to set socket pacing, using application pacing instead");
+        if (setsockopt(server_mbm_socket->fd(), IPPROTO_TCP, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
+           printf("Unable to set socket pacing, using application pacing instead");
         } else {
             printf("attempt successful, rate is %u\n", rate);
         }

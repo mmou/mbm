@@ -16,8 +16,6 @@
 #include <unistd.h>
 #include <syslog.h>
 
-
-
 // const char default_filename[] = DEFAULT_FILENAME;
 
 /* File descriptor for log file */
@@ -66,14 +64,6 @@ namespace mbm {
         client_mbm_socket->bindOrDie(DEFAULT_PORT2);
         client_mbm_socket->connectOrDie(all_args.server_listener_address.sin_addr.s_addr, port);
 
-        /// client_mbm_socket set max pacing rate (linux only)
-        unsigned int rate = 10;
-        printf("Socket pacing set to %u\n", rate);
-        if (setsockopt(client_mbm_socket->fd(), SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
-            printf("Unable to set socket pacing, using application pacing instead");
-        }
-
-
         // client_control_socket sends READY
         Packet control_ready_packet(READY, strlen(READY));
         client_control_socket->sendOrDie(control_ready_packet);
@@ -88,6 +78,8 @@ namespace mbm {
         const uint32_t bytes_per_chunk = ntohl(client_control_socket->receiveOrDie(sizeof(bytes_per_chunk)).as<uint32_t>());
         const uint32_t max_num_pkt = ntohl(client_control_socket->receiveOrDie(sizeof(max_num_pkt)).as<uint32_t>());
         const uint32_t max_time = ntohl(client_control_socket->receiveOrDie(sizeof(max_time)).as<uint32_t>());
+        const uint64_t target_window_size = ntohl(client_control_socket->receiveOrDie(sizeof(target_window_size)).as<uint32_t>());
+
         // error handle these?
 
         //fprintf(stdout, "receiving bytes_per_chunk: %d\n", bytes_per_chunk);
@@ -96,6 +88,16 @@ namespace mbm {
 
         fprintf(stdout, "receiving at most %d packets (%d bytes)\n", max_num_pkt, max_num_pkt*bytes_per_chunk);
         fprintf(stdout, "the process takes at most %d seconds\n", max_time);
+        fprintf(stdout, "target window size is %u packets\n", target_window_size);
+
+
+        /// client_mbm_socket set max pacing rate (linux only)
+        unsigned int rate = 5; //target_window_size;
+        printf("Socket pacing set to %u\n", rate);
+        if (setsockopt(client_mbm_socket->fd(), IPPROTO_TCP, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
+            printf("Unable to set socket pacing, using application pacing instead");
+        }
+
 
         while (true) {
             client_mbm_socket->receiveOrDie(bytes_per_chunk);
@@ -105,33 +107,36 @@ namespace mbm {
             static char tcp_options_text[MAX_TCPOPT];
             unsigned short opt_debug = 0;
 
-            if ( getsockopt( client_mbm_socket->fd(), SOL_IP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
+            if ( getsockopt( client_mbm_socket->fd(), IPPROTO_TCP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
                 memset((void *)tcp_options_text, 0, MAX_TCPOPT);
 
                 fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
 
                 fprintf(stdout, "tcpi_snd_mss: %u\n", tcp_info.tcpi_snd_mss);
                 fprintf(stdout, "tcpi_rcv_mss: %u\n", tcp_info.tcpi_rcv_mss);
+                fprintf(stdout, "tcpi_advmss: %u\n", tcp_info.tcpi_advmss); 
+                fprintf(stdout, "tcpi_rtt: %u\n", tcp_info.tcpi_rtt);   /* Smoothed RTT in usecs. */
+                fprintf(stdout, "tcpi_rttvar: %u\n", tcp_info.tcpi_rttvar); /* RTT variance in usecs. */
+                fprintf(stdout, "tcpi_snd_cwnd: %u\n", tcp_info.tcpi_snd_cwnd); /* Send congestion window. */
+                fprintf(stdout, "tcpi_rcv_space: %u\n", tcp_info.tcpi_rcv_space);  /* Advertised recv window. */
+                fprintf(stdout, "SND RATE Mb/s: %u\n", tcp_info.tcpi_snd_cwnd * tcp_info.tcpi_snd_mss * 8 / tcp_info.tcpi_rtt);
+                fprintf(stdout, "RCV RATE: %u\n", tcp_info.tcpi_rcv_space * tcp_info.tcpi_rcv_mss * 8 / tcp_info.tcpi_rtt);
 
                 fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
                 fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
                 fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
 
-                fprintf(stdout, "\n~~~~times~~~~\n");
-                fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
-                fprintf(stdout, "tcpi_last_ack_sent: %u\n", tcp_info.tcpi_last_ack_sent);
-                fprintf(stdout, "tcpi_last_data_recv: %u\n", tcp_info.tcpi_last_data_recv);
-                fprintf(stdout, "tcpi_last_ack_recv: %u\n", tcp_info.tcpi_last_ack_recv);
+                //fprintf(stdout, "\n~~~~times~~~~\n");
+                //fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
+                //fprintf(stdout, "tcpi_last_ack_sent: %u\n", tcp_info.tcpi_last_ack_sent);
+                //fprintf(stdout, "tcpi_last_data_recv: %u\n", tcp_info.tcpi_last_data_recv);
+                //fprintf(stdout, "tcpi_last_ack_recv: %u\n", tcp_info.tcpi_last_ack_recv);
 
-                fprintf(stdout, "\n~~~~metrics~~~~\n");
-                fprintf(stdout, "tcpi_pmtu: %u\n", tcp_info.tcpi_pmtu);
-                fprintf(stdout, "tcpi_rcv_ssthresh: %u\n", tcp_info.tcpi_rcv_ssthresh);
-                fprintf(stdout, "tcpi_rtt: %u\n", tcp_info.tcpi_rtt);
-                fprintf(stdout, "tcpi_rttvar: %u\n", tcp_info.tcpi_rttvar);
-                fprintf(stdout, "tcpi_snd_ssthresh: %u\n", tcp_info.tcpi_snd_ssthresh);
-                fprintf(stdout, "tcpi_snd_cwnd: %u\n", tcp_info.tcpi_snd_cwnd);
-                fprintf(stdout, "tcpi_advmss: %u\n", tcp_info.tcpi_advmss);
-                fprintf(stdout, "tcpi_reordering: %u\n", tcp_info.tcpi_reordering);
+                //fprintf(stdout, "\n~~~~metrics~~~~\n");
+                //fprintf(stdout, "tcpi_pmtu: %u\n", tcp_info.tcpi_pmtu);
+                //fprintf(stdout, "tcpi_rcv_ssthresh: %u\n", tcp_info.tcpi_rcv_ssthresh);
+                //fprintf(stdout, "tcpi_snd_ssthresh: %u\n", tcp_info.tcpi_snd_ssthresh);
+                //fprintf(stdout, "tcpi_reordering: %u\n", tcp_info.tcpi_reordering);
 
                 /* Write some statistics and start of connection to log file. */
                 //fprintf(stdout,"# TCP INFO STATS (AdvMSS %u, PMTU %u, options (%0.X): %s)\n",

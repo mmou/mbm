@@ -12,6 +12,9 @@
 #include "utils/constants.h"
 #include "utils/traffic_generator.h"
 
+#include <csignal>
+
+
 namespace mbm {
 
 /* Decode TCP options to string description. Please note that using strcat()
@@ -69,13 +72,13 @@ Result RunCBR(const Socket* client_mbm_socket,
 
 	// traffic pattern log
 	fprintf(stdout, "rate_bps: %d\n", rate_bps);
-	fprintf(stdout, "bytes_per_chunk: %8.6f\n", bytes_per_chunk);
-	fprintf(stdout, "chunks_per_sec: %8.6f\n", chunks_per_sec);
-	fprintf(stdout, "time_per_chunk_ns: %8.6f\n", time_per_chunk_ns);
-	fprintf(stdout, "time_per_chunk_sec: %8.6f\n", time_per_chunk_sec);
+	fprintf(stdout, "bytes_per_chunk: %d\n", bytes_per_chunk);
+	fprintf(stdout, "chunks_per_sec: %d\n", chunks_per_sec);
+	fprintf(stdout, "time_per_chunk_ns: %u\n", time_per_chunk_ns);
+	fprintf(stdout, "time_per_chunk_sec: %u\n", time_per_chunk_sec);
 	fprintf(stdout, "burst_size_pkt: %d\n", burst_size_pkt);
-	fprintf(stdout, "target_window_size: %8.6f\n", target_window_size);
-	fprintf(stdout, "target_run_length: %8.6f\n", target_run_length);
+	fprintf(stdout, "target_window_size: %u\n", target_window_size);
+	fprintf(stdout, "target_run_length: %u\n", target_run_length);
 
  	uint32_t cwnd_bytes_total = bytes_per_chunk * max_cwnd_pkt;
  	fprintf(stdout, "sending at most %d packets (%d bytes) to grow cwnd\n", max_cwnd_pkt, cwnd_bytes_total);
@@ -85,6 +88,10 @@ Result RunCBR(const Socket* client_mbm_socket,
 	// Maximum time for the traffic
 	fprintf(stdout, "cwnd traffic should take at most %d seconds\n", max_cwnd_time_sec);
 	fprintf(stdout, "test traffic should take at most %d seconds\n", max_test_time_sec);
+
+
+//    std::raise(SIGINT);
+
 
     //fprintf(stdout, "sending bytes_per_chunk: %d\n", bytes_per_chunk);
 	// Sending chunk length and traffic volume to client
@@ -99,18 +106,18 @@ Result RunCBR(const Socket* client_mbm_socket,
 	Packet max_time_packet(htonl(max_test_time_sec + max_cwnd_time_sec));
 	client_control_socket->sendOrDie(max_time_packet);
 
+	Packet target_window_size_packet(htonl(target_window_size));
+	client_control_socket->sendOrDie(target_window_size_packet);
 
 
 	TrafficGenerator generator(client_mbm_socket, bytes_per_chunk, max_test_pkt);
-   struct timespec req, rem;
-   req.tv_sec = 0;
-   req.tv_nsec = 500000000L;;
+	struct timespec req, rem;
+	req.tv_sec = 0;
+	req.tv_nsec = 500000000L;;
 
 	while (generator.packets_sent() < max_test_pkt*10) {
 	    if (!generator.Send(2)) { // burst_size_pkt
 	        printf("fail to send");      
-	    } else {
-			printf("succeesss"); 
 	    }
 
 		// sample the data once a second
@@ -124,34 +131,39 @@ Result RunCBR(const Socket* client_mbm_socket,
 			static char tcp_options_text[MAX_TCPOPT];
 			unsigned short opt_debug = 0;
 
-            if ( getsockopt( client_mbm_socket->fd(), SOL_IP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
+            if ( getsockopt( client_mbm_socket->fd(), IPPROTO_TCP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
                 memset((void *)tcp_options_text, 0, MAX_TCPOPT);
                 decode_tcp_options(tcp_options_text,tcp_info.tcpi_options);
 
-				fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
+                fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
 
-				fprintf(stdout, "tcpi_snd_mss: %u\n", tcp_info.tcpi_snd_mss);
-				fprintf(stdout, "tcpi_rcv_mss: %u\n", tcp_info.tcpi_rcv_mss);
+                fprintf(stdout, "tcpi_snd_mss: %u\n", tcp_info.tcpi_snd_mss);
+                fprintf(stdout, "tcpi_rcv_mss: %u\n", tcp_info.tcpi_rcv_mss);
+                fprintf(stdout, "tcpi_advmss: %u\n", tcp_info.tcpi_advmss); 
+                fprintf(stdout, "tcpi_rtt: %u\n", tcp_info.tcpi_rtt);   /* Smoothed RTT in usecs. */
+                fprintf(stdout, "tcpi_rttvar: %u\n", tcp_info.tcpi_rttvar); /* RTT variance in usecs. */
+                fprintf(stdout, "tcpi_snd_cwnd: %u\n", tcp_info.tcpi_snd_cwnd); /* Send congestion window. */
+                fprintf(stdout, "tcpi_rcv_space: %u\n", tcp_info.tcpi_rcv_space);  /* Advertised recv window. */
+                fprintf(stdout, "SND RATE Mb/s: %u\n", tcp_info.tcpi_snd_cwnd * tcp_info.tcpi_snd_mss * 8 / tcp_info.tcpi_rtt);
+                fprintf(stdout, "RCV RATE: %u\n", tcp_info.tcpi_rcv_space * tcp_info.tcpi_rcv_mss * 8 / tcp_info.tcpi_rtt);
 
-				fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
-				fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
-				fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
+                fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
+                fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
+                fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
 
-				fprintf(stdout, "\n~~~~times~~~~\n");
-				fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
-				fprintf(stdout, "tcpi_last_ack_sent: %u\n", tcp_info.tcpi_last_ack_sent);
-				fprintf(stdout, "tcpi_last_data_recv: %u\n", tcp_info.tcpi_last_data_recv);
-				fprintf(stdout, "tcpi_last_ack_recv: %u\n", tcp_info.tcpi_last_ack_recv);
 
-				fprintf(stdout, "\n~~~~metrics~~~~\n");
-				fprintf(stdout, "tcpi_pmtu: %u\n", tcp_info.tcpi_pmtu);
-				fprintf(stdout, "tcpi_rcv_ssthresh: %u\n", tcp_info.tcpi_rcv_ssthresh);
-				fprintf(stdout, "tcpi_rtt: %u\n", tcp_info.tcpi_rtt);
-				fprintf(stdout, "tcpi_rttvar: %u\n", tcp_info.tcpi_rttvar);
-				fprintf(stdout, "tcpi_snd_ssthresh: %u\n", tcp_info.tcpi_snd_ssthresh);
-				fprintf(stdout, "tcpi_snd_cwnd: %u\n", tcp_info.tcpi_snd_cwnd);
-				fprintf(stdout, "tcpi_advmss: %u\n", tcp_info.tcpi_advmss);
-				fprintf(stdout, "tcpi_reordering: %u\n", tcp_info.tcpi_reordering);
+
+                //fprintf(stdout, "\n~~~~times~~~~\n");
+                //fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
+                //fprintf(stdout, "tcpi_last_ack_sent: %u\n", tcp_info.tcpi_last_ack_sent);
+                //fprintf(stdout, "tcpi_last_data_recv: %u\n", tcp_info.tcpi_last_data_recv);
+                //fprintf(stdout, "tcpi_last_ack_recv: %u\n", tcp_info.tcpi_last_ack_recv);
+
+                //fprintf(stdout, "\n~~~~metrics~~~~\n");
+                //fprintf(stdout, "tcpi_pmtu: %u\n", tcp_info.tcpi_pmtu);
+                //fprintf(stdout, "tcpi_rcv_ssthresh: %u\n", tcp_info.tcpi_rcv_ssthresh);
+                //fprintf(stdout, "tcpi_snd_ssthresh: %u\n", tcp_info.tcpi_snd_ssthresh);
+                //fprintf(stdout, "tcpi_reordering: %u\n", tcp_info.tcpi_reordering);
 
                 /* Write some statistics and start of connection to log file. */
                 //fprintf(stdout,"# TCP INFO STATS (AdvMSS %u, PMTU %u, options (%0.X): %s)\n",

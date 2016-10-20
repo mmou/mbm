@@ -120,7 +120,7 @@ namespace mbm {
             exit(EXIT_FAILURE);
             return false;
         } else {
-            fprintf(stdout, "SUCCESS sending packet: %s ; buffer length %d\n", packet.buffer(), packet.length());            
+            //fprintf(stdout, "SUCCESS sending packet: %s ; buffer length %d\n", packet.buffer(), packet.length());            
             return true;
         }
 	}
@@ -132,7 +132,7 @@ namespace mbm {
             exit(EXIT_FAILURE);
         } else {
             Packet packet(buffer, size);
-            fprintf(stdout, "SUCCESS receiving packet: %s ; of size %d buffer length %d\n", packet.buffer(), size, packet.length());            
+            //fprintf(stdout, "SUCCESS receiving packet: %s ; of size %d buffer length %d\n", packet.buffer(), size, packet.length());            
             return packet;
         }
     }
