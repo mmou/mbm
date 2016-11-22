@@ -125,6 +125,7 @@ namespace mbm {
                 fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
                 fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
                 fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
+                fprintf(stdout, "tcpi_total_retrans: %u\n", tcp_info.tcpi_total_retrans);
 
                 //fprintf(stdout, "\n~~~~times~~~~\n");
                 //fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
