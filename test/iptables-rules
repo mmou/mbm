@@ -5,6 +5,8 @@
 :OUTPUT ACCEPT [66377:94717514]
 :LOGGING - [0:0]
 -A INPUT -p tcp -m tcp --dport 5201 -m connbytes --connbytes 100:100 --connbytes-mode packets --connbytes-dir original -j LOGGING
+-A INPUT -p tcp -m tcp --dport 5001 -m connbytes --connbytes 100:100 --connbytes-mode packets --connbytes-dir original -j LOGGING
+-A INPUT -m connbytes --connbytes 100:100 --connbytes-mode packets --connbytes-dir original -j LOGGING
 -A LOGGING -j LOG --log-prefix "IPTables-Dropped: " --log-tcp-sequence
 -A LOGGING -j DROP
 COMMIT
