@@ -147,7 +147,7 @@ namespace mbm {
         }
 
         Result test_result = (client_control_socket->receiveOrDie(sizeof(Result))).as<Result>();
-        fprintf(stdout, "TEST RESULT: %s\n", kResultStr[test_result]);
+        fprintf(stdout, "client hears the TEST RESULT: %s\n", kResultStr[test_result]);
 
     }
 }	// namespace mbm
