@@ -196,6 +196,11 @@ Result RunCBR(const Socket* client_mbm_socket,
     Packet control_end_packet(END, strlen(END));
     client_control_socket->sendOrDie(control_end_packet);
 
+    if (!(ave_rate_Bps >= rate_Bps*0.9 || ave_rate_Bps <= rate_Bps*1.1)) {
+        fprintf(stdout, "TEST ERROR - FAILED TO ACHIEVE TARGET TEST STREAM RATE\n");
+        test_result = RESULT_ERROR;
+    }
+
     // client_mbm_socket sends test result
     Packet control_test_result_packet(test_result);
     client_control_socket->sendOrDie(control_test_result_packet);
@@ -213,6 +218,8 @@ Result RunCBR(const Socket* client_mbm_socket,
     client_control_socket->sendOrDie(num_total_retrans_packet);
 
     fprintf(stdout, "\nserver says TEST RESULT: %s\n", kResultStr[test_result]);
+    fprintf(stdout, "SND RATE Bps: %u\n", send_rate_Bps);
+    fprintf(stdout, "AVE RATE Bps: %u\n", ave_rate_Bps);            
     fprintf(stdout, "num packets_sent: %d\n", generator.packets_sent());
     fprintf(stdout, "num_lost: %d\n", num_lost);
     fprintf(stdout, "num_retrans: %d\n", num_retrans);
