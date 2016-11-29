@@ -1,6 +1,7 @@
 #include "cbr.h"
 
 #include "model.h"
+#include "stat_test.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,10 +47,10 @@ Result RunCBR(const Socket* client_mbm_socket,
 
 	fprintf(stdout, "IN CBR TEST: %u", mbm_config.rate);
 
-	uint32_t rate_bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
+	uint32_t rate_Bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
 	uint32_t bytes_per_chunk = mbm_config.mss;
 
-	uint32_t chunks_per_sec = std::max(static_cast<int>(rate_bps / bytes_per_chunk), 1);	// calculate how many chunks per second we want to send
+	uint32_t chunks_per_sec = std::max(static_cast<int>(rate_Bps / bytes_per_chunk), 1);	// calculate how many chunks per second we want to send
     uint64_t time_per_chunk_ns = NS_PER_SEC / chunks_per_sec;	// calculate how many ns per chunk	
     double time_per_chunk_sec = 1.0 / chunks_per_sec;	// calculate how many sec per chunk
   
@@ -71,7 +72,7 @@ Result RunCBR(const Socket* client_mbm_socket,
 	uint64_t rtt_ns = mbm_config.rtt * 1000;
 
 	// traffic pattern log
-	fprintf(stdout, "rate_bps: %d\n", rate_bps);
+	fprintf(stdout, "rate_Bps: %d\n", rate_Bps);
 	fprintf(stdout, "bytes_per_chunk: %d\n", bytes_per_chunk);
 	fprintf(stdout, "chunks_per_sec: %d\n", chunks_per_sec);
 	fprintf(stdout, "time_per_chunk_ns: %u\n", time_per_chunk_ns);
@@ -111,107 +112,95 @@ Result RunCBR(const Socket* client_mbm_socket,
 
 
 	TrafficGenerator generator(client_mbm_socket, bytes_per_chunk, max_test_pkt);
-	struct timespec req, rem;
-	req.tv_sec = 0;
-	req.tv_nsec = 500000000L;;
+    StatTest tester = StatTest(target_run_length);
 
-	while (generator.packets_sent() < max_test_pkt*10) {
-	    if (!generator.Send(2)) { // burst_size_pkt
-	        printf("fail to send");      
+	uint32_t send_rate_Bps = 0;
+	uint32_t ave_rate_Bps = 0;
+	uint32_t num_lost = 0;
+	uint32_t num_retrans = 0;
+    uint32_t num_total_retrans = 0;
+
+	struct tcp_info tcp_info;			
+    int tcp_info_length = sizeof(tcp_info);
+	unsigned short opt_debug = 0;
+
+    bool test_stream_ready = false;
+    Result test_result = RESULT_INCONCLUSIVE;
+
+	while (generator.packets_sent() < max_test_pkt) {
+	    if (!generator.Send(1)) { // burst_size_pkt
+	        printf("fail to send");
+            test_result = RESULT_ERROR;
+            break;                  
 	    }
 
-		// sample the data once a second
-		if (generator.packets_sent() % (chunks_per_sec*3) == 0) {
+        /* Fill tcp_info structure with data to get the TCP options and the client's
+         * name.
+         */
+        if ( getsockopt( client_mbm_socket->fd(), IPPROTO_TCP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
 
-            /* Fill tcp_info structure with data to get the TCP options and the client's
-             * name.
-             */
-			struct tcp_info tcp_info;			
-            int tcp_info_length = sizeof(tcp_info);
-			static char tcp_options_text[MAX_TCPOPT];
-			unsigned short opt_debug = 0;
+            send_rate_Bps = tcp_info.tcpi_snd_cwnd * tcp_info.tcpi_snd_mss * 8 / tcp_info.tcpi_rtt * 1000 * 1000;
+            ave_rate_Bps = send_rate_Bps*0.2 + ave_rate_Bps*0.8;
 
-            if ( getsockopt( client_mbm_socket->fd(), IPPROTO_TCP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
-                memset((void *)tcp_options_text, 0, MAX_TCPOPT);
-                decode_tcp_options(tcp_options_text,tcp_info.tcpi_options);
+            num_lost = num_lost + tcp_info.tcpi_lost;
+            num_retrans = num_retrans + tcp_info.tcpi_retrans;
+            num_total_retrans = num_total_retrans + tcp_info.tcpi_total_retrans;
 
+            if (generator.packets_sent() > 0 && generator.packets_sent() % target_run_length == 0) {
+                // test every target_run_length packets
+
+                fprintf(stdout, "%d%% complete\n", static_cast<float>(100 * generator.packets_sent())/max_test_pkt);
                 fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
-
-                fprintf(stdout, "tcpi_snd_mss: %u\n", tcp_info.tcpi_snd_mss);
-                fprintf(stdout, "tcpi_rcv_mss: %u\n", tcp_info.tcpi_rcv_mss);
-                fprintf(stdout, "tcpi_advmss: %u\n", tcp_info.tcpi_advmss); 
-                fprintf(stdout, "tcpi_rtt: %u\n", tcp_info.tcpi_rtt);   /* Smoothed RTT in usecs. */
-                fprintf(stdout, "tcpi_rttvar: %u\n", tcp_info.tcpi_rttvar); /* RTT variance in usecs. */
-                fprintf(stdout, "tcpi_snd_cwnd: %u\n", tcp_info.tcpi_snd_cwnd); /* Send congestion window. */
-                fprintf(stdout, "tcpi_rcv_space: %u\n", tcp_info.tcpi_rcv_space);  /* Advertised recv window. */
-                fprintf(stdout, "SND RATE Mb/s: %u\n", tcp_info.tcpi_snd_cwnd * tcp_info.tcpi_snd_mss * 8 / tcp_info.tcpi_rtt);
-                fprintf(stdout, "RCV RATE: %u\n", tcp_info.tcpi_rcv_space * tcp_info.tcpi_rcv_mss * 8 / tcp_info.tcpi_rtt);
+                fprintf(stdout, "SND RATE Bps: %u\n", send_rate_Bps);
+                fprintf(stdout, "AVE RATE Bps: %u\n", ave_rate_Bps);            
 
                 fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
                 fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
                 fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
                 fprintf(stdout, "tcpi_total_retrans: %u\n", tcp_info.tcpi_total_retrans);
 
+                fprintf(stdout, "num packets_sent: %u\n", generator.packets_sent());
+                fprintf(stdout, "num_lost: %u\n", num_lost);
+                fprintf(stdout, "num_retrans: %u\n", num_retrans);
+                fprintf(stdout, "num_total_retrans: %u\n", num_total_retrans);                
 
+                if (ave_rate_Bps >= rate_Bps*0.9 || ave_rate_Bps <= rate_Bps*1.1) {
+                    // if average rate is close enough to the target rate 
 
-                //fprintf(stdout, "\n~~~~times~~~~\n");
-                //fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
-                //fprintf(stdout, "tcpi_last_ack_sent: %u\n", tcp_info.tcpi_last_ack_sent);
-                //fprintf(stdout, "tcpi_last_data_recv: %u\n", tcp_info.tcpi_last_data_recv);
-                //fprintf(stdout, "tcpi_last_ack_recv: %u\n", tcp_info.tcpi_last_ack_recv);
+                    // if test stream wasn't ready, then it now is ready
+                    if (!test_stream_ready) test_stream_ready = true;
 
-                //fprintf(stdout, "\n~~~~metrics~~~~\n");
-                //fprintf(stdout, "tcpi_pmtu: %u\n", tcp_info.tcpi_pmtu);
-                //fprintf(stdout, "tcpi_rcv_ssthresh: %u\n", tcp_info.tcpi_rcv_ssthresh);
-                //fprintf(stdout, "tcpi_snd_ssthresh: %u\n", tcp_info.tcpi_snd_ssthresh);
-                //fprintf(stdout, "tcpi_reordering: %u\n", tcp_info.tcpi_reordering);
+                    if (generator.packets_sent() > max_test_pkt/3) {
+                        // test only after a good amount of data is collected??
+                        test_result = tester.test_result(generator.packets_sent(), num_lost + num_retrans);
+                        if (test_result == RESULT_PASS) {
+                            fprintf(stdout, "TEST PASSED\n");
+                            break;
+                        } else if (test_result == RESULT_FAIL) {
+                            fprintf(stdout, "TEST FAILED\n");
+                            break;
+                        } else {
+                            fprintf(stdout, "TEST so far inclusive\n");                        
+                        }
+                    }
 
-                /* Write some statistics and start of connection to log file. */
-                //fprintf(stdout,"# TCP INFO STATS (AdvMSS %u, PMTU %u, options (%0.X): %s)\n",
-                //        tcp_info.tcpi_advmss,
-                //        tcp_info.tcpi_pmtu,
-                //        tcp_info.tcpi_options,
-                //        tcp_options_text
-                //       );
+                } else if (test_stream_ready) {
+                    // if average rate is not close enough to target rate and test stream is supposed to be ready
+                    fprintf(stdout, "TEST ERROR - FAILED TO ACHIEVE TARGET TEST STREAM RATE\n");
+                    test_result = RESULT_ERROR;
+                    break;
+                }
             }
-
-            nanosleep(&req , &rem);
-			//// statistical test
-			//test_connection.Stop();
-			//uint32_t loss = test_connection.PacketRetransCount();
-			//uint32_t n = generator.packets_sent();
-			//test_result = tester.test_result(n, loss);
-			//if (test_result == RESULT_PASS) {
-			//  std::cout << "passed SPRT" << std::endl;
-			//  result_set = true;
-			//  break;
-			//} else if (test_result == RESULT_FAIL) {
-			//  std::cout << "failed SPRT" << std::endl;
-			//  result_set = true;
-			//  break;
-			//}
 		}
-	    
-	    //// figure out the start time for the next chunk
-	    //uint64_t next_start = outer_start_time +
-	    //                      generator.packets_sent() * time_per_chunk_ns;
-	    //uint64_t curr_time = GetTimeNS();
-	    //int32_t left_over_ns = next_start - curr_time;
-	    //if (left_over_ns > 0) {
-	    //  // If we have time left over, sleep the remainder.
-	    //  NanoSleepX(left_over_ns / NS_PER_SEC, left_over_ns % NS_PER_SEC);
-	    //} else {
-	    //  missed_total += abs(left_over_ns);
-	    //  missed_sleep++;
-	    //  missed_max = std::max(missed_max, static_cast<uint64_t>(abs(left_over_ns)));
-	    //  if (missed_total > (curr_time - outer_start_time) / 2) {
-	    //    // Inconclusive because the test failed to generate the traffic pattern
-	    //    test_result = RESULT_INCONCLUSIVE;
-	    //    result_set = true;
-	    //    break;
-	    //  }
-	    //}	    
 	}
+
+    Packet control_end_packet(END, strlen(END));
+    client_control_socket->sendOrDie(control_end_packet);
+
+    // client_mbm_socket sends test result
+    Packet control_test_result_packet(test_result);
+    client_control_socket->sendOrDie(control_test_result_packet);
+
 
 /*
 growing window size phase

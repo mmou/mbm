@@ -1,1 +1,1 @@
-sudo ./mbm-test.py
+sudo mn -c ; sudo python mbm-test.py

@@ -4,10 +4,12 @@
 #include "utils/constants.h"
 #include "utils/scoped_ptr.h"
 #include "utils/socket.h"
+#include "utils/result.h"
 
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <getopt.h>
+#include <sys/poll.h>
 
 #include <iostream>
 #include <ctype.h>
@@ -15,6 +17,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <syslog.h>
+
 
 // const char default_filename[] = DEFAULT_FILENAME;
 
@@ -43,9 +46,15 @@ namespace mbm {
     };
 
     void Run(all_args all_args) {
+        int enable = 1;
 
         // create socket
         scoped_ptr<Socket> client_control_socket(new Socket());
+
+        if (setsockopt(client_control_socket->fd(), SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+            perror("setsockopt(SO_REUSEADDR) failed");
+        }
+
         client_control_socket->bindOrDie(DEFAULT_PORT);
         client_control_socket->connectOrDie(all_args.server_listener_address);
 
@@ -61,6 +70,11 @@ namespace mbm {
 
 
         scoped_ptr<Socket> client_mbm_socket(new Socket());
+
+        if (setsockopt(client_mbm_socket->fd(), SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+            perror("setsockopt(SO_REUSEADDR) failed");
+        }
+
         client_mbm_socket->bindOrDie(DEFAULT_PORT2);
         client_mbm_socket->connectOrDie(all_args.server_listener_address.sin_addr.s_addr, port);
 
@@ -91,63 +105,49 @@ namespace mbm {
         fprintf(stdout, "target window size is %u packets\n", target_window_size);
 
 
-        /// client_mbm_socket set max pacing rate (linux only)
-        unsigned int rate = 5; //target_window_size;
-        printf("Socket pacing set to %u\n", rate);
-        if (setsockopt(client_mbm_socket->fd(), IPPROTO_TCP, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
-            printf("Unable to set socket pacing, using application pacing instead");
-        }
-
-
+        // start test
         while (true) {
-            client_mbm_socket->receiveOrDie(bytes_per_chunk);
 
-            struct tcp_info tcp_info;           
-            int tcp_info_length = sizeof(tcp_info);
-            static char tcp_options_text[MAX_TCPOPT];
-            unsigned short opt_debug = 0;
+            // receive test packets
+            struct pollfd ufds[2];
+            int rv;
 
-            if ( getsockopt( client_mbm_socket->fd(), IPPROTO_TCP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
-                memset((void *)tcp_options_text, 0, MAX_TCPOPT);
+            ufds[0].fd = client_control_socket->fd();
+            ufds[0].events = POLLIN; // | POLLPRI; // check for normal or out-of-band
 
-                fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
+            ufds[1].fd = client_mbm_socket->fd();
+            ufds[1].events = POLLIN; // check for just normal data
 
-                fprintf(stdout, "tcpi_snd_mss: %u\n", tcp_info.tcpi_snd_mss);
-                fprintf(stdout, "tcpi_rcv_mss: %u\n", tcp_info.tcpi_rcv_mss);
-                fprintf(stdout, "tcpi_advmss: %u\n", tcp_info.tcpi_advmss); 
-                fprintf(stdout, "tcpi_rtt: %u\n", tcp_info.tcpi_rtt);   /* Smoothed RTT in usecs. */
-                fprintf(stdout, "tcpi_rttvar: %u\n", tcp_info.tcpi_rttvar); /* RTT variance in usecs. */
-                fprintf(stdout, "tcpi_snd_cwnd: %u\n", tcp_info.tcpi_snd_cwnd); /* Send congestion window. */
-                fprintf(stdout, "tcpi_rcv_space: %u\n", tcp_info.tcpi_rcv_space);  /* Advertised recv window. */
-                fprintf(stdout, "SND RATE Mb/s: %u\n", tcp_info.tcpi_snd_cwnd * tcp_info.tcpi_snd_mss * 8 / tcp_info.tcpi_rtt);
-                fprintf(stdout, "RCV RATE: %u\n", tcp_info.tcpi_rcv_space * tcp_info.tcpi_rcv_mss * 8 / tcp_info.tcpi_rtt);
+            rv = poll(ufds, 2, max_time+120);
 
-                fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
-                fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
-                fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
-                fprintf(stdout, "tcpi_total_retrans: %u\n", tcp_info.tcpi_total_retrans);
+            if (rv == -1) {
+                perror("poll"); // error occurred in poll()
+                break;
+            } else if (rv == 0) {
+                fprintf(stdout, "Max time reached.\n");
+                break;
+            } else {
+                // check for events on client_control_socket:
+                if (ufds[0].revents & POLLIN) {
+                    std::string control_end = (client_control_socket->receiveOrDie(strlen(END))).str();
+                    fprintf(stdout, "control received %s\n", control_end.c_str());
+                    break;
+                }
 
-                //fprintf(stdout, "\n~~~~times~~~~\n");
-                //fprintf(stdout, "tcpi_last_data_sent: %u\n", tcp_info.tcpi_last_data_sent);
-                //fprintf(stdout, "tcpi_last_ack_sent: %u\n", tcp_info.tcpi_last_ack_sent);
-                //fprintf(stdout, "tcpi_last_data_recv: %u\n", tcp_info.tcpi_last_data_recv);
-                //fprintf(stdout, "tcpi_last_ack_recv: %u\n", tcp_info.tcpi_last_ack_recv);
-
-                //fprintf(stdout, "\n~~~~metrics~~~~\n");
-                //fprintf(stdout, "tcpi_pmtu: %u\n", tcp_info.tcpi_pmtu);
-                //fprintf(stdout, "tcpi_rcv_ssthresh: %u\n", tcp_info.tcpi_rcv_ssthresh);
-                //fprintf(stdout, "tcpi_snd_ssthresh: %u\n", tcp_info.tcpi_snd_ssthresh);
-                //fprintf(stdout, "tcpi_reordering: %u\n", tcp_info.tcpi_reordering);
-
-                /* Write some statistics and start of connection to log file. */
-                //fprintf(stdout,"# TCP INFO STATS (AdvMSS %u, PMTU %u, options (%0.X): %s)\n",
-                //        tcp_info.tcpi_advmss,
-                //        tcp_info.tcpi_pmtu,
-                //        tcp_info.tcpi_options,
-                //        tcp_options_text
-                //       );
+                // check for events on client_mbm_socket:
+                if (ufds[1].revents & POLLIN) {
+                    if (client_mbm_socket->receiveOrDie(bytes_per_chunk).length() < bytes_per_chunk) {
+                        fprintf(stdout, "Something went wrong. The server might have died: %s\n", strerror(errno));
+                        break;
+                    } else {
+                        // packet received
+                    }
+                }
             }
         }
+
+        Result test_result = (client_control_socket->receiveOrDie(sizeof(Result))).as<Result>();
+        fprintf(stdout, "TEST RESULT: %s\n", kResultStr[test_result]);
 
     }
 }	// namespace mbm
@@ -210,6 +210,7 @@ mbm::all_args mbm_parse_arguments(int argc, char* argv[]) {
 
 
 int main(int argc, char* argv[]) {
+
 
     /* Get options */
     mbm::all_args all_args = mbm_parse_arguments(argc, argv);

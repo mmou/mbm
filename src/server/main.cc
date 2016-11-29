@@ -40,6 +40,12 @@ namespace mbm {
 
         // create server_mbm_socket (try to pick a port)
         scoped_ptr<Socket> server_mbm_socket(new Socket());
+
+        int enable = 1;
+        if (setsockopt(server_mbm_socket->fd(), SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+            perror("setsockopt(SO_REUSEADDR) failed");
+        }
+
         server_mbm_socket->bindOrDie(BASE_PORT);
 
         // server_mbm_socket accept connection from client_mbm_socket
@@ -48,14 +54,13 @@ namespace mbm {
 
         /// server_mbm_socket set max pacing rate (linux only)
         //int64_t target_window_size = model::target_window_size(config.rate, config.rtt, config.mss); // todo: probably shouldn't call this here
-        unsigned int rate = 5; //target_window_size;
+        unsigned int rate = config.rate * 1000 / 8; // kilobits per second --> bytes per second
         printf("Socket pacing set to %u\n", rate);
-        if (setsockopt(server_mbm_socket->fd(), IPPROTO_TCP, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
-           printf("Unable to set socket pacing, using application pacing instead");
+        if (setsockopt(server_mbm_socket->fd(), SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
+           printf("Unable to set socket pacing, using application pacing instead:%s", strerror(errno));
         } else {
             printf("attempt successful, rate is %u\n", rate);
         }
-
 
         // send port to client_control_socket
         Packet port_packet(htons(BASE_PORT));
@@ -76,24 +81,7 @@ namespace mbm {
 
         //std::raise(SIGINT);
         RunCBR(client_mbm_socket, client_control_socket, config);
-
-        //////////////////
-
-//        /* If connection is established then start communicating */
-//        bzero(buffer,256);
-//        if (recv( client_control_socket,buffer,255, 0) < 0) {
-//           perror("SERVER THREAD: ERROR reading from socket");
-//           exit(EXIT_FAILURE);
-//        }
-//       
-//        printf("SERVER THREAD: Here is the message: %s\n",buffer);
-//       
-//        /* Write a response to the client */        
-//        if (send(client_control_socket,"I got your message",18, 0) < 0) {
-//            perror("ERROR writing to socket");
-//            exit(EXIT_FAILURE);
-//        }
-        
+       
         pthread_exit(NULL);
 
     }
@@ -105,6 +93,12 @@ int main( int argc, char *argv[] ) {
 
     // create socket
     scoped_ptr<mbm::Socket> server_listener_socket(new mbm::Socket());
+
+    int enable = 1;
+    if (setsockopt(server_listener_socket->fd(), SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+        perror("setsockopt(SO_REUSEADDR) failed");
+    }
+
     server_listener_socket->bindOrDie(DEFAULT_PORT);
     server_listener_socket->listenOrDie();
 

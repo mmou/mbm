@@ -16,5 +16,9 @@ namespace mbm {
 #define CWND_INCR_SEC_PER_MB 5
 #define CWND_MAX_SEC 50
 
+#define DEFAULT_TYPE_I_ERR 0.05
+#define DEFAULT_TYPE_II_ERR 0.05
+	
+
 
 }

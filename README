@@ -1,0 +1,11 @@
+1. Run `cmake CMakeLists.txt`
+
+2. Run `make`
+
+3. Start server: ./src/server/mbm_server
+4. In another window, start client: ./src/client/mbm_client -a 18.189.55.117 -p 5001 -r 20000 -t 50 -m 1500 -b 1
+
+If desired, prior to starting server and client, also run tcpdump:
+5. Start tcpdump on server side: sudo tcpdump -i eth0 port 12346 -w test_server.pcap
+6. Start tcpdump on client side: sudo tcpdump -i wlp6s0 port 42238 -w test_client.pcap
+
