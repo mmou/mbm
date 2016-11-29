@@ -205,6 +205,12 @@ Result RunCBR(const Socket* client_mbm_socket,
     Packet control_test_result_packet(test_result);
     client_control_socket->sendOrDie(control_test_result_packet);
 
+    Packet send_rate_packet(htonl(send_rate_Bps));
+    client_control_socket->sendOrDie(send_rate_packet);
+
+    Packet ave_rate_packet(htonl(ave_rate_Bps));
+    client_control_socket->sendOrDie(ave_rate_packet);
+
     Packet packets_sent_packet(htonl(generator.packets_sent()));
     client_control_socket->sendOrDie(packets_sent_packet);
 
