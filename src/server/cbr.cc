@@ -148,8 +148,6 @@ Result RunCBR(const Socket* client_mbm_socket,
 
             if (generator.packets_sent() > 0 && generator.packets_sent() % target_run_length == 0) {
                 // test every target_run_length packets
-
-                fprintf(stdout, "%d%% complete\n", static_cast<float>(100 * generator.packets_sent())/max_test_pkt);
                 
                 //fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
                 //fprintf(stdout, "SND RATE Bps: %u\n", send_rate_Bps);
@@ -202,7 +200,7 @@ Result RunCBR(const Socket* client_mbm_socket,
     Packet control_test_result_packet(test_result);
     client_control_socket->sendOrDie(control_test_result_packet);
 
-    fprintf(stdout, "TEST RESULT: %u\n", test_result);
+    fprintf(stdout, "\nserver says TEST RESULT: %s\n", kResultStr[test_result]);
     fprintf(stdout, "num packets_sent: %u\n", generator.packets_sent());
     fprintf(stdout, "num_lost: %u\n", num_lost);
     fprintf(stdout, "num_retrans: %u\n", num_retrans);

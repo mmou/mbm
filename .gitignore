@@ -3,3 +3,4 @@ Makefile
 cmake_install.cmake
 CMakeFiles/
 CMakeCache.txt
+src/utils/libmbm.a

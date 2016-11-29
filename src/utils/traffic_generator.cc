@@ -41,7 +41,7 @@ bool TrafficGenerator::Send(uint32_t num_chunks, ssize_t& num_bytes){
 
 //    std::cout << "  s: " << std::hex << ntohl(seq_no) << " " << std::dec << ntohl(seq_no) << "\n";
 //    std::cout << "  nonce: " << std::hex << ntohl(nonce) << " " << std::dec << ntohl(nonce) << "\n";
-/*    if (max_packets_ != 0) {
+    if (max_packets_ != 0) {
       uint32_t percent = static_cast<uint32_t>(
           static_cast<float>(100 * packets_sent_) / max_packets_);
       if (percent > last_percent_) {
@@ -49,7 +49,7 @@ bool TrafficGenerator::Send(uint32_t num_chunks, ssize_t& num_bytes){
         std::cout << "\r" << percent << "%" << std::flush;
       }
     }
-*/
+
   } // for loop
   total_bytes_sent_ += num_bytes;
   
