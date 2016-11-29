@@ -200,11 +200,23 @@ Result RunCBR(const Socket* client_mbm_socket,
     Packet control_test_result_packet(test_result);
     client_control_socket->sendOrDie(control_test_result_packet);
 
+    Packet packets_sent_packet(htonl(generator.packets_sent()));
+    client_control_socket->sendOrDie(packets_sent_packet);
+
+    Packet num_lost_packet(htonl(num_lost));
+    client_control_socket->sendOrDie(num_lost_packet);
+
+    Packet num_retrans_packet(htonl(num_retrans));
+    client_control_socket->sendOrDie(num_retrans_packet);
+
+    Packet num_total_retrans_packet(htonl(num_total_retrans));
+    client_control_socket->sendOrDie(num_total_retrans_packet);
+
     fprintf(stdout, "\nserver says TEST RESULT: %s\n", kResultStr[test_result]);
-    fprintf(stdout, "num packets_sent: %u\n", generator.packets_sent());
-    fprintf(stdout, "num_lost: %u\n", num_lost);
-    fprintf(stdout, "num_retrans: %u\n", num_retrans);
-    fprintf(stdout, "num_total_retrans: %u\n", num_total_retrans);                
+    fprintf(stdout, "num packets_sent: %d\n", generator.packets_sent());
+    fprintf(stdout, "num_lost: %d\n", num_lost);
+    fprintf(stdout, "num_retrans: %d\n", num_retrans);
+    fprintf(stdout, "num_total_retrans: %d\n", num_total_retrans);                
 
 
 /*

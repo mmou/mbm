@@ -149,6 +149,16 @@ namespace mbm {
         Result test_result = (client_control_socket->receiveOrDie(sizeof(Result))).as<Result>();
         fprintf(stdout, "client hears TEST RESULT: %s\n", kResultStr[test_result]);
 
+        const uint32_t packets_sent = ntohl(client_control_socket->receiveOrDie(sizeof(packets_sent)).as<uint32_t>());
+        const uint32_t num_lost = ntohl(client_control_socket->receiveOrDie(sizeof(num_lost)).as<uint32_t>());
+        const uint32_t num_retrans = ntohl(client_control_socket->receiveOrDie(sizeof(num_retrans)).as<uint32_t>());
+        const uint32_t num_total_retrans = ntohl(client_control_socket->receiveOrDie(sizeof(num_total_retrans)).as<uint32_t>());
+
+        fprintf(stdout, "packets_sent: %d\n", packets_sent);
+        fprintf(stdout, "num_lost: %d\n", num_lost);
+        fprintf(stdout, "num_retrans: %d\n", num_retrans);
+        fprintf(stdout, "num_total_retrans: %d\n", num_total_retrans);
+
     }
 }	// namespace mbm
 
