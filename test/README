@@ -1,1 +1,8 @@
 sudo mn -c ; sudo python mbm-test.py
+
+Test:
+
+h2 iperf3 -c h3
+
+
+h2 ../src/client/mbm_client -a h3 -p 5001 -r 20000 -t 50 -m 1500 -b 1 \n'

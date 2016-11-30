@@ -156,8 +156,8 @@ namespace mbm {
         const uint32_t num_retrans = ntohl(client_control_socket->receiveOrDie(sizeof(num_retrans)).as<uint32_t>());
         const uint32_t num_total_retrans = ntohl(client_control_socket->receiveOrDie(sizeof(num_total_retrans)).as<uint32_t>());
 
-        fprintf(stdout, "send_rate: %d\n", send_rate);
-        fprintf(stdout, "ave_rate: %d\n", ave_rate);
+        fprintf(stdout, "send_rate_Mbps: %d\n", send_rate);
+        fprintf(stdout, "ave_rate_Mbps: %d\n", ave_rate);
         fprintf(stdout, "packets_sent: %d\n", packets_sent);
         fprintf(stdout, "num_lost: %d\n", num_lost);
         fprintf(stdout, "num_retrans: %d\n", num_retrans);

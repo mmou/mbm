@@ -32,7 +32,7 @@ def intfOptions():
     link5 = net.addLink( h4, s2, cls=TCLink )
     net.start()
 
-    # Add some bandwidth constraints and delay and loss 
+    # Add some bandwidth (Mbps) constraints, delay (ms), and loss (%) 
     link1.intf1.config( bw=200, delay='33ms', loss=0)
     link2.intf1.config( bw=200, delay='1ms', loss=0)
     link3.intf1.config( bw=100, delay='1ms', loss=0)

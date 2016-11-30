@@ -48,7 +48,8 @@ Result RunCBR(const Socket* client_mbm_socket,
 	fprintf(stdout, "IN CBR TEST: %u", mbm_config.rate);
 
 	uint32_t rate_Bps = mbm_config.rate * 1000 / 8; // kilobits per sec --> bytes per sec
-	uint32_t bytes_per_chunk = mbm_config.mss;
+	uint32_t rate_bps = mbm_config.rate * 1000; // bits per sec
+    uint32_t bytes_per_chunk = mbm_config.mss;
 
 	uint32_t chunks_per_sec = std::max(static_cast<int>(rate_Bps / bytes_per_chunk), 1);	// calculate how many chunks per second we want to send
     uint64_t time_per_chunk_ns = NS_PER_SEC / chunks_per_sec;	// calculate how many ns per chunk	
@@ -73,6 +74,7 @@ Result RunCBR(const Socket* client_mbm_socket,
 
 	// traffic pattern log
 	fprintf(stdout, "rate_Bps: %d\n", rate_Bps);
+    fprintf(stdout, "rate_Mbps: %d\n", rate_Bps * 8 / 1000 / 1000);    
 	fprintf(stdout, "bytes_per_chunk: %d\n", bytes_per_chunk);
 	fprintf(stdout, "chunks_per_sec: %d\n", chunks_per_sec);
 	fprintf(stdout, "time_per_chunk_ns: %u\n", time_per_chunk_ns);
@@ -114,8 +116,8 @@ Result RunCBR(const Socket* client_mbm_socket,
 	TrafficGenerator generator(client_mbm_socket, bytes_per_chunk, max_test_pkt);
     StatTest tester = StatTest(target_run_length);
 
-	uint32_t send_rate_Bps = 0;
-	uint32_t ave_rate_Bps = 0;
+	uint32_t send_rate_bps = 0;
+	uint32_t ave_rate_bps = 0;
 	uint32_t num_lost = 0;
 	uint32_t num_retrans = 0;
     uint32_t num_total_retrans = 0;
@@ -139,8 +141,8 @@ Result RunCBR(const Socket* client_mbm_socket,
          */
         if ( getsockopt( client_mbm_socket->fd(), IPPROTO_TCP, TCP_INFO, (void *)&tcp_info, (socklen_t *)&tcp_info_length ) == 0 ) {
 
-            send_rate_Bps = tcp_info.tcpi_snd_cwnd * tcp_info.tcpi_snd_mss * 8 / tcp_info.tcpi_rtt * 1000 * 1000;
-            ave_rate_Bps = send_rate_Bps*0.2 + ave_rate_Bps*0.8;
+            send_rate_bps = tcp_info.tcpi_snd_cwnd * tcp_info.tcpi_snd_mss * 8 / tcp_info.tcpi_rtt * 1000 * 1000;
+            ave_rate_bps = send_rate_bps*0.2 + ave_rate_bps*0.8;
 
             num_lost = num_lost + tcp_info.tcpi_lost;
             num_retrans = num_retrans + tcp_info.tcpi_retrans;
@@ -149,21 +151,23 @@ Result RunCBR(const Socket* client_mbm_socket,
             if (generator.packets_sent() > 0 && generator.packets_sent() % target_run_length == 0) {
                 // test every target_run_length packets
                 
-                //fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
-                //fprintf(stdout, "SND RATE Bps: %u\n", send_rate_Bps);
-                //fprintf(stdout, "AVE RATE Bps: %u\n", ave_rate_Bps);            
+                fprintf(stdout, "\n~~~~TCP INFO~~~~\n");
+                fprintf(stdout, "SND RATE bps: %u\n", send_rate_bps);
+                fprintf(stdout, "AVE RATE bps: %u\n", ave_rate_bps);            
+                fprintf(stdout, "SND RATE Mbps: %u\n", send_rate_bps / 1000 / 1000);
+                fprintf(stdout, "AVE RATE Mbps: %u\n", ave_rate_bps / 1000 / 1000);
 
-                //fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
-                //fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
-                //fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
-                //fprintf(stdout, "tcpi_total_retrans: %u\n", tcp_info.tcpi_total_retrans);
+                fprintf(stdout, "tcpi_lost: %u\n", tcp_info.tcpi_lost);
+                fprintf(stdout, "tcpi_retrans: %u\n", tcp_info.tcpi_retrans);
+                fprintf(stdout, "tcpi_retransmits: %u\n", tcp_info.tcpi_retransmits);
+                fprintf(stdout, "tcpi_total_retrans: %u\n", tcp_info.tcpi_total_retrans);
 
-                //fprintf(stdout, "num packets_sent: %u\n", generator.packets_sent());
-                //fprintf(stdout, "num_lost: %u\n", num_lost);
-                //fprintf(stdout, "num_retrans: %u\n", num_retrans);
-                //fprintf(stdout, "num_total_retrans: %u\n", num_total_retrans);                
+                fprintf(stdout, "num packets_sent: %d\n", generator.packets_sent());
+                fprintf(stdout, "num_lost: %d\n", num_lost);
+                fprintf(stdout, "num_retrans: %d\n", num_retrans);
+                fprintf(stdout, "num_total_retrans: %d\n", num_total_retrans);                
 
-                if (ave_rate_Bps >= rate_Bps*0.9 || ave_rate_Bps <= rate_Bps*1.1) {
+                if (ave_rate_bps >= rate_bps*0.9 || ave_rate_bps <= rate_bps*1.1) {
                     // if average rate is close enough to the target rate 
 
                     // if test stream wasn't ready, then it now is ready
@@ -171,7 +175,7 @@ Result RunCBR(const Socket* client_mbm_socket,
 
                     if (generator.packets_sent() > max_test_pkt/3) {
                         // test only after a good amount of data is collected??
-                        test_result = tester.test_result(generator.packets_sent(), num_lost + num_retrans);
+                        test_result = tester.test_result(generator.packets_sent(), num_lost);
                         if (test_result == RESULT_PASS) {
                             fprintf(stdout, "TEST PASSED\n");
                             break;
@@ -196,7 +200,7 @@ Result RunCBR(const Socket* client_mbm_socket,
     Packet control_end_packet(END, strlen(END));
     client_control_socket->sendOrDie(control_end_packet);
 
-    if (!(ave_rate_Bps >= rate_Bps*0.9 || ave_rate_Bps <= rate_Bps*1.1)) {
+    if (!(ave_rate_bps >= rate_bps*0.9 || ave_rate_bps <= rate_bps*1.1)) {
         fprintf(stdout, "TEST ERROR - FAILED TO ACHIEVE TARGET TEST STREAM RATE\n");
         test_result = RESULT_ERROR;
     }
@@ -205,10 +209,10 @@ Result RunCBR(const Socket* client_mbm_socket,
     Packet control_test_result_packet(test_result);
     client_control_socket->sendOrDie(control_test_result_packet);
 
-    Packet send_rate_packet(htonl(send_rate_Bps));
+    Packet send_rate_packet(htonl(send_rate_bps / 1000 / 1000));
     client_control_socket->sendOrDie(send_rate_packet);
 
-    Packet ave_rate_packet(htonl(ave_rate_Bps));
+    Packet ave_rate_packet(htonl(ave_rate_bps / 1000 / 1000));
     client_control_socket->sendOrDie(ave_rate_packet);
 
     Packet packets_sent_packet(htonl(generator.packets_sent()));
@@ -224,8 +228,10 @@ Result RunCBR(const Socket* client_mbm_socket,
     client_control_socket->sendOrDie(num_total_retrans_packet);
 
     fprintf(stdout, "\nserver says TEST RESULT: %s\n", kResultStr[test_result]);
-    fprintf(stdout, "SND RATE Bps: %u\n", send_rate_Bps);
-    fprintf(stdout, "AVE RATE Bps: %u\n", ave_rate_Bps);            
+    fprintf(stdout, "SND RATE bps: %u\n", send_rate_bps);
+    fprintf(stdout, "AVE RATE bps: %u\n", ave_rate_bps);            
+    fprintf(stdout, "SND RATE Mbps: %u\n", send_rate_bps / 1000 / 1000);
+    fprintf(stdout, "AVE RATE Mbps: %u\n", ave_rate_bps / 1000 / 1000);
     fprintf(stdout, "num packets_sent: %d\n", generator.packets_sent());
     fprintf(stdout, "num_lost: %d\n", num_lost);
     fprintf(stdout, "num_retrans: %d\n", num_retrans);
